@@ -8,5 +8,43 @@
 //
 // This program only needs to handle arguments that satisfy
 // R0 >= 0, R1 >= 0, and R0*R1 < 32768.
+    @R0
+    D=M
+    @add
+    M=D
 
-// Put your code here.
+    @R1
+    D=M
+    @decrement
+    M=D
+
+    @product
+    M=0
+
+(LOOP)
+    // If decrement is 0, stop adding
+    @decrement
+    D=M
+    @STOP
+    D;JEQ
+
+    // Otherwise, decrement `decrement` and add `add` to product
+    @decrement
+    M=M-1
+    @add
+    D=M
+    @product
+    M=D+M
+    @LOOP
+    0;JMP
+
+(STOP)
+    @product
+    D=M
+    @R2
+    M=D
+
+(END)
+    @END
+    0;JMP
+ 
