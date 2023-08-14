@@ -39,5 +39,64 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-    // Put your code here:
+    Mux16(a=instruction,b=ALUoutput,sel=instruction[15],out=AregisterIN);
+    Not(in=instruction[15],out=isAinstruction);
+    And(a=instruction[15],b=loadAregister,out=CinstructionAndLoadA);
+    Or(a=isAinstruction,b=CinstructionAndLoadA,out=AloadBit);
+    ARegister(in=AregisterIN,load=AloadBit,out=AregisterOUT,out[0..14]=addressM);
+    DRegister(in=ALUoutput,load=loadDregister,out=ALUinputD);
+    Mux16(a=AregisterOUT,b=inM,sel=instruction[12],out=ALUinputAorM);
+    ALU(
+        x=ALUinputD,
+        y=ALUinputAorM,
+        zx=instruction[11],
+        nx=instruction[10],
+        zy=instruction[9],
+        ny=instruction[8],
+        f=instruction[7],
+        no=instruction[6],
+        zr=ALUoutputZero,
+        ng=ALUoutputNeg,
+        out=ALUoutput,
+        out=outM
+    );
+    And(a=instruction[15],b=instruction[5],out=loadAregister);
+    And(a=instruction[15],b=instruction[4],out=loadDregister);
+    And(a=instruction[15],b=instruction[3],out=writeM);
+    PC(in=AregisterOUT,load=shouldJumpFINAL,inc=true,reset=reset,out[0..14]=pc);
+    DMux8Way(
+        in=true,
+        sel=instruction[0..2],
+        a=NOJMP,
+        b=JGT,
+        c=JEQ,
+        d=JGE,
+        e=JLT,
+        f=JNE,
+        g=JLE,
+        h=JMPfinal
+    );
+    Not(in=ALUoutputZero,out=notZero);
+    Not(in=ALUoutputNeg,out=notNeg);
+    And(a=notZero,b=notNeg,out=greaterThan);
+    And(a=JGT,b=greaterThan,out=JGTfinal);
+    And(a=JEQ,b=ALUoutputZero,out=JEQfinal);
+    Or(a=ALUoutputZero,b=greaterThan,out=JGEtest);
+    And(a=JGE,b=JGEtest,out=JGEfinal);
+    And(a=JLT,b=ALUoutputNeg,out=JLTfinal);
+    And(a=JNE,b=notZero,out=JNEfinal);
+    Or(a=ALUoutputNeg,b=ALUoutputZero,out=JLEtest);
+    And(a=JLE,b=JLEtest,out=JLEfinal);
+    Or8Way(
+        in[0]=false,
+        in[1]=JGTfinal,
+        in[2]=JEQfinal,
+        in[3]=JGEfinal,
+        in[4]=JLTfinal,
+        in[5]=JNEfinal,
+        in[6]=JLEfinal,
+        in[7]=JMPfinal,
+        out=shouldJump
+    );
+    And(a=shouldJump,b=instruction[15],out=shouldJumpFINAL);
 }
