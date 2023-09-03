@@ -52,14 +52,16 @@ class Assembler:
             else:
                 parsed_instruction = self.parse_c_instruction(line)
             binary_output.append(parsed_instruction + "\n")
-            print(parsed_instruction)
 
         return binary_output
 
     def parse_a_instruction(self, instruction: str) -> str:
-        var_name = instruction.lstrip("@")
-        mem_addr = self.symbol_table.maybe_add_and_return(var_name)
-        binary = format(mem_addr, "b").zfill(16)
+        address = instruction.lstrip("@")
+        if address.isnumeric():
+            address = int(address)
+        else:
+            address = self.symbol_table.maybe_add_and_return(address)
+        binary = format(address, "b").zfill(16)
         return binary
 
     def parse_c_instruction(self, instruction: str) -> str:
