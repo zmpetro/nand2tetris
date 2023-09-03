@@ -6,15 +6,15 @@ from dataclasses import dataclass
 
 
 @dataclass
-class ParsedCInstruction:
+class ParsedInstruction:
     comp: str
     dest: str | None = None
     jump: str | None = None
 
 
-class CInstructionParser:
+class InstructionParser:
     @staticmethod
-    def parse(instruction: str) -> ParsedCInstruction:
+    def parse(instruction: str) -> ParsedInstruction:
         if "=" in instruction and ";" in instruction:
             dest, comp_jump = instruction.split("=")
             comp, jump = comp_jump.split(";")
@@ -25,4 +25,4 @@ class CInstructionParser:
             comp, jump = instruction.split(";")
             dest = None
 
-        return ParsedCInstruction(comp, dest, jump)
+        return ParsedInstruction(comp, dest, jump)
