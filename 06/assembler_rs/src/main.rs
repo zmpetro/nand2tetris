@@ -135,10 +135,26 @@ impl SymbolTable {
             mem_counter: 16,
         }
     }
+
+    fn add_label(&mut self, name: &str, value: u16) {
+        // Used in first pass for label symbols: given a label name and
+        // instruction number, store it in the symbol table.
+        self.table.insert(String::from(name), value);
+    }
+
+    fn maybe_add_and_return(&mut self, name: &str) -> u16 {
+        // Used in second pass for both label and variable symbols: if the
+        // symbol does not exist in the table, it is a new variable. Add it to
+        // the table and increment the memory counter. In any case, return the
+        // value stored in the table for the symbol name.
+        if !self.table.contains_key(name) {
+            self.table.insert(String::from(name), self.mem_counter);
+            self.mem_counter += 1;
+        }
+        self.table[name]
+    }
 }
 
 fn main() {
     println!("Hello, world!");
-    let mut symbol_table = SymbolTable::initialize();
-    println!("{:?}", symbol_table);
 }
