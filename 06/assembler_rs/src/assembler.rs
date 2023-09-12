@@ -247,3 +247,56 @@ fn parse_c_instruction(instruction: &str) -> String {
     };
     format!("111{comp}{dest}{jump}")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::instruction_parser;
+
+    #[test]
+    fn test_parse_valid_instruction() {
+        let test_cases = Vec::from([
+            ("AM=M-1", "M-1", Some(String::from("AM")), None::<String>),
+            ("0;JMP", "0", None::<String>, Some(String::from("JMP"))),
+            (
+                "D=M-D;JNE",
+                "M-D",
+                Some(String::from("D")),
+                Some(String::from("JNE")),
+            ),
+        ]);
+
+        for test in test_cases {
+            let parsed_instruction = instruction_parser::parse_instruction(test.0);
+            assert_eq!(parsed_instruction.comp, test.1);
+            assert_eq!(parsed_instruction.dest, test.2);
+            assert_eq!(parsed_instruction.jump, test.3);
+        }
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_parse_invalid_instruction() {
+        let _parsed_instruction = instruction_parser::parse_instruction("D+M");
+    }
+
+    #[test]
+    fn test_strip_comment_and_whitespace() {
+        let test_cases = Vec::from([
+            (
+                "// This file is part of www.nand2tetris.org",
+                None::<String>,
+            ),
+            ("   D;JLE", Some(String::from("D;JLE"))),
+            (
+                "   D;JGT            // if D>0 (first is greater) goto output_first",
+                Some(String::from("D;JGT")),
+            ),
+            ("(OUTPUT_FIRST)", Some(String::from("(OUTPUT_FIRST)"))),
+        ]);
+
+        for test in test_cases {
+            let sanitized_line = super::strip_comment_and_whitespace(test.0);
+            assert_eq!(sanitized_line, test.1);
+        }
+    }
+}
