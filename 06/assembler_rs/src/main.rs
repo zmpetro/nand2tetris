@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::env;
+use std::fs::{read_to_string, write};
 
 #[derive(Debug)]
 struct ParsedInstruction {
@@ -9,12 +11,11 @@ struct ParsedInstruction {
 
 fn parse_instruction(instruction: &str) -> ParsedInstruction {
     if instruction.contains("=") && instruction.contains(";") {
-        let split1: Vec<&str> = instruction.split("=").collect();
-        let split2: Vec<&str> = split1[1].split(";").collect();
+        let split: Vec<&str> = instruction.split(&['=', ';']).collect();
         return ParsedInstruction {
-            comp: String::from(split2[0]),
-            dest: Some(String::from(split1[0])),
-            jump: Some(String::from(split2[1])),
+            comp: String::from(split[1]),
+            dest: Some(String::from(split[0])),
+            jump: Some(String::from(split[2])),
         };
     } else if instruction.contains("=") && !instruction.contains(";") {
         let split: Vec<&str> = instruction.split("=").collect();
@@ -155,6 +156,103 @@ impl SymbolTable {
     }
 }
 
+fn read_lines(infile: &str) -> Vec<String> {
+    // Reads the lines of the infile, while ignoring comments and whitespace.
+    let mut lines = Vec::new();
+    for line in read_to_string(infile).unwrap().lines() {
+        if let Some(line) = strip_comment_and_whitespace(line) {
+            lines.push(line);
+        }
+    }
+    lines
+}
+
+fn strip_comment_and_whitespace(line: &str) -> Option<String> {
+    let split: Vec<&str> = line.split("//").collect();
+    let line = split[0].trim();
+    if line.is_empty() {
+        return None;
+    } else {
+        return Some(String::from(line));
+    }
+}
+
+fn write_lines(outfile: &str, binary_output: &Vec<String>) {
+    write(outfile, binary_output.join("\n"))
+        .expect(&format!("Failed to write hack output to {}", outfile));
+}
+
+fn assemble(infile: &str) -> Vec<String> {
+    let lines = read_lines(infile);
+    let mut symbol_table = SymbolTable::initialize();
+    set_label_symbols(&mut symbol_table, &lines);
+    let binary_output = parse_instructions(&lines, &mut symbol_table);
+    binary_output
+}
+
+fn set_label_symbols(symbol_table: &mut SymbolTable, lines: &Vec<String>) {
+    // First pass: traverse the valid lines of the file, and when a label
+    // definition is found, add the label to the symbol table.
+    let mut counter: u16 = 0;
+    for line in lines {
+        if line.starts_with('(') {
+            let label = line.strip_prefix('(').unwrap().strip_suffix(')').unwrap();
+            symbol_table.add_label(label, counter);
+        } else {
+            counter += 1;
+        }
+    }
+}
+
+fn parse_instructions(lines: &Vec<String>, symbol_table: &mut SymbolTable) -> Vec<String> {
+    let mut binary_output: Vec<String> = Vec::new();
+    for line in lines {
+        if line.starts_with('(') {
+            continue;
+        } else if line.starts_with('@') {
+            binary_output.push(parse_a_instruction(line, symbol_table));
+        } else {
+            binary_output.push(parse_c_instruction(line));
+        }
+    }
+    binary_output
+}
+
+fn parse_a_instruction(instruction: &str, symbol_table: &mut SymbolTable) -> String {
+    let instruction = instruction.strip_prefix('@').unwrap();
+    let address: u16 = match instruction.parse() {
+        Ok(address) => address,
+        Err(_) => symbol_table.maybe_add_and_return(instruction),
+    };
+    format!("{:016b}", address)
+}
+
+fn parse_c_instruction(instruction: &str) -> String {
+    let parsed_instruction = parse_instruction(instruction);
+    let comp = parse_comp(&parsed_instruction.comp);
+    let dest = match parsed_instruction.dest {
+        Some(dest) => parse_dest(&dest),
+        None => String::from("000"),
+    };
+    let jump = match parsed_instruction.jump {
+        Some(jump) => parse_jump(&jump),
+        None => String::from("000"),
+    };
+    format!("111{comp}{dest}{jump}")
+}
+
 fn main() {
-    println!("Hello, world!");
+    let args: Vec<String> = env::args().collect();
+    if args.len() != 3 {
+        panic!("Usage: assembler_rs <infile> <outfile>");
+    }
+    let infile = &args[1];
+    let outfile = &args[2];
+    let binary_output = assemble(infile);
+    println!(
+        "Assembling {} and writing hack output to {}...",
+        infile, outfile
+    );
+    write_lines(outfile, &binary_output);
+    println!("Assembly successful; output written to {}", outfile);
 }

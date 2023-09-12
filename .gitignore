@@ -1,2 +1,7 @@
 *.out
 *.pyc
+ztest.sh
+debug/
+target/
+**/*.rs.bk
+*.pdb
