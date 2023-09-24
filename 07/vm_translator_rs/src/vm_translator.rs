@@ -125,12 +125,8 @@ mod translator {
     use super::parser::ParsedVMInstruction;
     use super::MemorySegment;
 
-    const ADD: &'static [&str] = &[
-        "@SP", "M=M-1", "A=M", "D=M", "@SP", "M=M-1", "A=M", "M=M+D", "@SP", "M=M+1",
-    ];
-    const SUBTRACT: &'static [&str] = &[
-        "@SP", "M=M-1", "A=M", "D=M", "@SP", "M=M-1", "A=M", "M=M-D", "@SP", "M=M+1",
-    ];
+    const ADD: &'static [&str] = &["@SP", "M=M-1", "A=M", "D=M", "A=A-1", "M=M+D"];
+    const SUBTRACT: &'static [&str] = &["@SP", "M=M-1", "A=M", "D=M", "A=A-1", "M=M-D"];
 
     pub fn translate(instruction: &ParsedVMInstruction) -> Vec<String> {
         match instruction {
