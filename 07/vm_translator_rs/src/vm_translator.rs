@@ -128,11 +128,14 @@ mod translator {
     const ADD: &'static [&str] = &[
         "@SP", "M=M-1", "A=M", "D=M", "@SP", "M=M-1", "A=M", "M=M+D", "@SP", "M=M+1",
     ];
+    const SUBTRACT: &'static [&str] = &[
+        "@SP", "M=M-1", "A=M", "D=M", "@SP", "M=M-1", "A=M", "M=M-D", "@SP", "M=M+1",
+    ];
 
     pub fn translate(instruction: &ParsedVMInstruction) -> Vec<String> {
         match instruction {
             ParsedVMInstruction::Add => ADD.iter().map(|&s| s.to_string()).collect(),
-            ParsedVMInstruction::Sub => todo!(),
+            ParsedVMInstruction::Sub => SUBTRACT.iter().map(|&s| s.to_string()).collect(),
             ParsedVMInstruction::Neg => todo!(),
             ParsedVMInstruction::Eq => todo!(),
             ParsedVMInstruction::Gt => todo!(),
