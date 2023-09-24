@@ -158,10 +158,9 @@ mod translator {
             format!("@{idx}"),
             String::from("D=A"),
             String::from("@SP"),
-            String::from("A=M"),
-            String::from("M=D"),
-            String::from("@SP"),
             String::from("M=M+1"),
+            String::from("A=M-1"),
+            String::from("M=D"),
         ]
     }
 }
