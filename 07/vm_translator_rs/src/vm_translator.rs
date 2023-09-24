@@ -1,3 +1,5 @@
+use std::fs::{read_to_string, write};
+
 #[derive(Debug, PartialEq)]
 pub enum MemorySegment {
     Local,
@@ -120,6 +122,88 @@ mod parser {
 mod translator {
     // Given a parsed VM instruction, translates the instruction into its
     // valid Hack assembly code
+    use super::parser::ParsedVMInstruction;
+    use super::MemorySegment;
+
+    const ADD: &'static [&str] = &[
+        "@SP", "M=M-1", "A=M", "D=M", "@SP", "M=M-1", "A=M", "M=M+D", "@SP", "M=M+1",
+    ];
+
+    pub fn translate(instruction: &ParsedVMInstruction) -> Vec<String> {
+        match instruction {
+            ParsedVMInstruction::Add => ADD.iter().map(|&s| s.to_string()).collect(),
+            ParsedVMInstruction::Sub => todo!(),
+            ParsedVMInstruction::Neg => todo!(),
+            ParsedVMInstruction::Eq => todo!(),
+            ParsedVMInstruction::Gt => todo!(),
+            ParsedVMInstruction::Lt => todo!(),
+            ParsedVMInstruction::And => todo!(),
+            ParsedVMInstruction::Or => todo!(),
+            ParsedVMInstruction::Not => todo!(),
+            ParsedVMInstruction::Pop { segment, idx } => todo!(),
+            ParsedVMInstruction::Push { segment, idx } => match segment {
+                MemorySegment::Local => todo!(),
+                MemorySegment::Argument => todo!(),
+                MemorySegment::This => todo!(),
+                MemorySegment::That => todo!(),
+                MemorySegment::Constant => push_const(idx),
+                MemorySegment::Static => todo!(),
+                MemorySegment::Pointer => todo!(),
+                MemorySegment::Temp => todo!(),
+            },
+        }
+    }
+
+    fn push_const(idx: &String) -> Vec<String> {
+        vec![
+            format!("@{idx}"),
+            String::from("D=A"),
+            String::from("@SP"),
+            String::from("A=M"),
+            String::from("M=D"),
+            String::from("@SP"),
+            String::from("M=M+1"),
+        ]
+    }
+}
+
+fn read_lines(infile: &str) -> Vec<String> {
+    // Reads the lines of the infile, while ignoring comments and whitespace.
+    let mut lines = Vec::new();
+    for line in read_to_string(infile).unwrap().lines() {
+        if let Some(line) = strip_comment_and_whitespace(line) {
+            lines.push(line);
+        }
+    }
+    lines
+}
+
+fn strip_comment_and_whitespace(line: &str) -> Option<String> {
+    let split: Vec<&str> = line.split("//").collect();
+    let line = split[0].trim();
+    if line.is_empty() {
+        return None;
+    } else {
+        return Some(String::from(line));
+    }
+}
+
+pub fn write_lines(outfile: &str, asm_output: &Vec<String>) {
+    write(outfile, asm_output.join("\n")).expect(&format!(
+        "Failed to write hack assembly output to {}",
+        outfile
+    ));
+}
+
+pub fn translate(infile: &str) -> Vec<String> {
+    let lines = read_lines(infile);
+    let mut asm_output: Vec<String> = Vec::new();
+    for line in lines {
+        let instruction = parser::parse_instruction(&line);
+        let asm = translator::translate(&instruction);
+        asm_output.extend(asm);
+    }
+    asm_output
 }
 
 #[cfg(test)]
@@ -129,7 +213,7 @@ mod tests {
 
     #[test]
     fn test_parse_valid_instruction() {
-        let test_cases = Vec::from([
+        let test_cases = vec![
             (
                 "push constant 10",
                 ParsedVMInstruction::Push {
@@ -146,7 +230,7 @@ mod tests {
             ),
             ("add", ParsedVMInstruction::Add),
             ("sub", ParsedVMInstruction::Sub),
-        ]);
+        ];
 
         for test in test_cases {
             let parsed_instruction = parse_instruction(test.0);
