@@ -153,4 +153,16 @@ mod tests {
             assert_eq!(parsed_instruction, test.1);
         }
     }
+
+    #[test]
+    #[should_panic]
+    fn test_parse_invalid_instruction() {
+        let _parsed_instruction = parse_instruction("gte");
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_parse_invalid_push_instruction() {
+        let _parsed_instruction = parse_instruction("push constant");
+    }
 }
