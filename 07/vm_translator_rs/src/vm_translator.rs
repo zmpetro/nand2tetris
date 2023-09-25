@@ -127,12 +127,17 @@ mod translator {
 
     const ADD: &'static [&str] = &["@SP", "M=M-1", "A=M", "D=M", "A=A-1", "M=M+D"];
     const SUBTRACT: &'static [&str] = &["@SP", "M=M-1", "A=M", "D=M", "A=A-1", "M=M-D"];
+    const NEG: &'static [&str] = &["@SP", "A=M-1", "M=-M"];
+
+    fn const_instr_to_vec(const_instr: &'static [&str]) -> Vec<String> {
+        const_instr.iter().map(|&s| s.to_string()).collect()
+    }
 
     pub fn translate(instruction: &ParsedVMInstruction) -> Vec<String> {
         match instruction {
-            ParsedVMInstruction::Add => ADD.iter().map(|&s| s.to_string()).collect(),
-            ParsedVMInstruction::Sub => SUBTRACT.iter().map(|&s| s.to_string()).collect(),
-            ParsedVMInstruction::Neg => todo!(),
+            ParsedVMInstruction::Add => const_instr_to_vec(ADD),
+            ParsedVMInstruction::Sub => const_instr_to_vec(SUBTRACT),
+            ParsedVMInstruction::Neg => const_instr_to_vec(NEG),
             ParsedVMInstruction::Eq => todo!(),
             ParsedVMInstruction::Gt => todo!(),
             ParsedVMInstruction::Lt => todo!(),
