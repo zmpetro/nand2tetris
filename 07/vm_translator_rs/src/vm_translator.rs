@@ -128,22 +128,25 @@ mod translator {
     const ADD: &'static [&str] = &["@SP", "M=M-1", "A=M", "D=M", "A=A-1", "M=M+D"];
     const SUBTRACT: &'static [&str] = &["@SP", "M=M-1", "A=M", "D=M", "A=A-1", "M=M-D"];
     const NEG: &'static [&str] = &["@SP", "A=M-1", "M=-M"];
+    const AND: &'static [&str] = &["@SP", "M=M-1", "A=M", "D=M", "A=A-1", "M=D&M"];
+    const OR: &'static [&str] = &["@SP", "M=M-1", "A=M", "D=M", "A=A-1", "M=D|M"];
+    const NOT: &'static [&str] = &["@SP", "A=M-1", "M=!M"];
 
     fn const_instr_to_vec(const_instr: &'static [&str]) -> Vec<String> {
         const_instr.iter().map(|&s| s.to_string()).collect()
     }
 
-    pub fn translate(instruction: &ParsedVMInstruction) -> Vec<String> {
+    pub fn translate(instruction: &ParsedVMInstruction, next_instr: usize) -> Vec<String> {
         match instruction {
             ParsedVMInstruction::Add => const_instr_to_vec(ADD),
             ParsedVMInstruction::Sub => const_instr_to_vec(SUBTRACT),
             ParsedVMInstruction::Neg => const_instr_to_vec(NEG),
-            ParsedVMInstruction::Eq => todo!(),
-            ParsedVMInstruction::Gt => todo!(),
-            ParsedVMInstruction::Lt => todo!(),
-            ParsedVMInstruction::And => todo!(),
-            ParsedVMInstruction::Or => todo!(),
-            ParsedVMInstruction::Not => todo!(),
+            ParsedVMInstruction::Eq => logical_comp(next_instr, "JEQ"),
+            ParsedVMInstruction::Gt => logical_comp(next_instr, "JGT"),
+            ParsedVMInstruction::Lt => logical_comp(next_instr, "JLT"),
+            ParsedVMInstruction::And => const_instr_to_vec(AND),
+            ParsedVMInstruction::Or => const_instr_to_vec(OR),
+            ParsedVMInstruction::Not => const_instr_to_vec(NOT),
             ParsedVMInstruction::Pop { segment, idx } => todo!(),
             ParsedVMInstruction::Push { segment, idx } => match segment {
                 MemorySegment::Local => todo!(),
@@ -156,6 +159,23 @@ mod translator {
                 MemorySegment::Temp => todo!(),
             },
         }
+    }
+
+    fn logical_comp(next_instr: usize, jmp_instr: &str) -> Vec<String> {
+        vec![
+            String::from("@SP"),
+            String::from("M=M-1"),
+            String::from("A=M"),
+            String::from("D=M"),
+            String::from("A=A-1"),
+            String::from("D=M-D"),
+            String::from("M=1"),
+            format!("@{}", next_instr + 12),
+            format!("D;{}", jmp_instr),
+            String::from("@SP"),
+            String::from("A=M-1"),
+            String::from("M=0"),
+        ]
     }
 
     fn push_const(idx: &String) -> Vec<String> {
@@ -203,7 +223,7 @@ pub fn translate(infile: &str) -> Vec<String> {
     let mut asm_output: Vec<String> = Vec::new();
     for line in lines {
         let instruction = parser::parse_instruction(&line);
-        let asm = translator::translate(&instruction);
+        let asm = translator::translate(&instruction, asm_output.len());
         asm_output.extend(asm);
     }
     asm_output
