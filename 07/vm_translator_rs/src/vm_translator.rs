@@ -169,7 +169,7 @@ mod translator {
             String::from("D=M"),
             String::from("A=A-1"),
             String::from("D=M-D"),
-            String::from("M=1"),
+            String::from("M=-1"),
             format!("@{}", next_instr + 12),
             format!("D;{}", jmp_instr),
             String::from("@SP"),
