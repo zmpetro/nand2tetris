@@ -350,8 +350,8 @@ pub fn write_lines(outfile: &str, asm_output: &Vec<String>) {
 
 pub fn translate(infile: &str) -> Vec<String> {
     let lines = read_lines(infile);
-    let static_base: Vec<&str> = infile.split(".").collect();
-    let static_base = static_base[0]; // Basename of static variables
+    let static_base: Vec<&str> = infile.split(&['/', '.'][..]).collect();
+    let static_base = static_base[static_base.len() - 2]; // Basename of static variables
     let mut asm_output: Vec<String> = Vec::new();
     for line in lines {
         let instruction = parser::parse_instruction(&line);
