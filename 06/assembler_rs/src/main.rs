@@ -9,11 +9,11 @@ fn main() {
     }
     let infile = &args[1];
     let outfile = &args[2];
-    let binary_output = assembler::assemble(infile);
     println!(
         "Assembling {} and writing hack output to {}...",
         infile, outfile
     );
+    let binary_output = assembler::assemble(infile);
     assembler::write_lines(outfile, &binary_output);
     println!("Assembly successful; output written to {}", outfile);
 }
