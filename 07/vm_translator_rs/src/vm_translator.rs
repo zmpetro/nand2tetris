@@ -12,6 +12,18 @@ pub enum MemorySegment {
     Temp,
 }
 
+impl MemorySegment {
+    pub fn seg_ptr(&self) -> &str {
+        match *self {
+            MemorySegment::Local => "LCL",
+            MemorySegment::Argument => "ARG",
+            MemorySegment::This => "THIS",
+            MemorySegment::That => "THAT",
+            _ => panic!("No segment pointer for {:?}", self),
+        }
+    }
+}
+
 mod parser {
     // Takes a VM instruction and parses it into the type of instruction it is
     // as well as its individual components if necessary
@@ -28,8 +40,8 @@ mod parser {
         And,
         Or,
         Not,
-        Pop { segment: MemorySegment, idx: String },
-        Push { segment: MemorySegment, idx: String },
+        Pop { segment: MemorySegment, idx: u16 },
+        Push { segment: MemorySegment, idx: u16 },
     }
 
     pub fn parse_instruction(instruction: &str) -> ParsedVMInstruction {
@@ -47,72 +59,68 @@ mod parser {
             "pop" => match split_instr[1] {
                 "local" => ParsedVMInstruction::Pop {
                     segment: MemorySegment::Local,
-                    idx: String::from(split_instr[2]),
+                    idx: split_instr[2].parse::<u16>().unwrap(),
                 },
                 "argument" => ParsedVMInstruction::Pop {
                     segment: MemorySegment::Argument,
-                    idx: String::from(split_instr[2]),
+                    idx: split_instr[2].parse::<u16>().unwrap(),
                 },
                 "this" => ParsedVMInstruction::Pop {
                     segment: MemorySegment::This,
-                    idx: String::from(split_instr[2]),
+                    idx: split_instr[2].parse::<u16>().unwrap(),
                 },
                 "that" => ParsedVMInstruction::Pop {
                     segment: MemorySegment::That,
-                    idx: String::from(split_instr[2]),
-                },
-                "constant" => ParsedVMInstruction::Pop {
-                    segment: MemorySegment::Constant,
-                    idx: String::from(split_instr[2]),
+                    idx: split_instr[2].parse::<u16>().unwrap(),
                 },
                 "static" => ParsedVMInstruction::Pop {
                     segment: MemorySegment::Static,
-                    idx: String::from(split_instr[2]),
+                    idx: split_instr[2].parse::<u16>().unwrap(),
                 },
                 "pointer" => ParsedVMInstruction::Pop {
                     segment: MemorySegment::Pointer,
-                    idx: String::from(split_instr[2]),
+                    idx: split_instr[2].parse::<u16>().unwrap(),
                 },
                 "temp" => ParsedVMInstruction::Pop {
                     segment: MemorySegment::Temp,
-                    idx: String::from(split_instr[2]),
+                    idx: split_instr[2].parse::<u16>().unwrap(),
                 },
-                _ => panic!("Invalid memory segment: {}", split_instr[1]),
+                _ => panic!("Invalid pop memory segment: {}", split_instr[1]),
             },
             "push" => match split_instr[1] {
                 "local" => ParsedVMInstruction::Push {
                     segment: MemorySegment::Local,
-                    idx: String::from(split_instr[2]),
+                    idx: split_instr[2].parse::<u16>().unwrap(),
                 },
                 "argument" => ParsedVMInstruction::Push {
                     segment: MemorySegment::Argument,
-                    idx: String::from(split_instr[2]),
+                    idx: split_instr[2].parse::<u16>().unwrap(),
                 },
                 "this" => ParsedVMInstruction::Push {
                     segment: MemorySegment::This,
-                    idx: String::from(split_instr[2]),
+                    idx: split_instr[2].parse::<u16>().unwrap(),
                 },
                 "that" => ParsedVMInstruction::Push {
                     segment: MemorySegment::That,
-                    idx: String::from(split_instr[2]),
+                    idx: split_instr[2].parse::<u16>().unwrap(),
                 },
                 "constant" => ParsedVMInstruction::Push {
                     segment: MemorySegment::Constant,
-                    idx: String::from(split_instr[2]),
+                    idx: split_instr[2].parse::<u16>().unwrap(),
                 },
                 "static" => ParsedVMInstruction::Push {
                     segment: MemorySegment::Static,
-                    idx: String::from(split_instr[2]),
+                    idx: split_instr[2].parse::<u16>().unwrap(),
                 },
                 "pointer" => ParsedVMInstruction::Push {
                     segment: MemorySegment::Pointer,
-                    idx: String::from(split_instr[2]),
+                    idx: split_instr[2].parse::<u16>().unwrap(),
                 },
                 "temp" => ParsedVMInstruction::Push {
                     segment: MemorySegment::Temp,
-                    idx: String::from(split_instr[2]),
+                    idx: split_instr[2].parse::<u16>().unwrap(),
                 },
-                _ => panic!("Invalid memory segment: {}", split_instr[1]),
+                _ => panic!("Invalid push memory segment: {}", split_instr[1]),
             },
             _ => panic!("Invalid instruction type: {}", split_instr[0]),
         }
@@ -132,11 +140,13 @@ mod translator {
     const OR: &'static [&str] = &["@SP", "M=M-1", "A=M", "D=M", "A=A-1", "M=D|M"];
     const NOT: &'static [&str] = &["@SP", "A=M-1", "M=!M"];
 
+    const TEMP_OFFSET: u16 = 5;
+
     fn const_instr_to_vec(const_instr: &'static [&str]) -> Vec<String> {
         const_instr.iter().map(|&s| s.to_string()).collect()
     }
 
-    pub fn translate(instruction: &ParsedVMInstruction, next_instr: usize) -> Vec<String> {
+    pub fn translate(instruction: ParsedVMInstruction, next_instr: usize) -> Vec<String> {
         match instruction {
             ParsedVMInstruction::Add => const_instr_to_vec(ADD),
             ParsedVMInstruction::Sub => const_instr_to_vec(SUBTRACT),
@@ -147,16 +157,25 @@ mod translator {
             ParsedVMInstruction::And => const_instr_to_vec(AND),
             ParsedVMInstruction::Or => const_instr_to_vec(OR),
             ParsedVMInstruction::Not => const_instr_to_vec(NOT),
-            ParsedVMInstruction::Pop { segment, idx } => todo!(),
+            ParsedVMInstruction::Pop { segment, idx } => match segment {
+                MemorySegment::Local => basic_pop(segment, idx),
+                MemorySegment::Argument => basic_pop(segment, idx),
+                MemorySegment::This => basic_pop(segment, idx),
+                MemorySegment::That => basic_pop(segment, idx),
+                MemorySegment::Constant => panic!("Invalid instruction: pop constant"),
+                MemorySegment::Static => todo!(),
+                MemorySegment::Pointer => todo!(),
+                MemorySegment::Temp => pop_temp(idx),
+            },
             ParsedVMInstruction::Push { segment, idx } => match segment {
-                MemorySegment::Local => todo!(),
-                MemorySegment::Argument => todo!(),
-                MemorySegment::This => todo!(),
-                MemorySegment::That => todo!(),
+                MemorySegment::Local => basic_push(segment, idx),
+                MemorySegment::Argument => basic_push(segment, idx),
+                MemorySegment::This => basic_push(segment, idx),
+                MemorySegment::That => basic_push(segment, idx),
                 MemorySegment::Constant => push_const(idx),
                 MemorySegment::Static => todo!(),
                 MemorySegment::Pointer => todo!(),
-                MemorySegment::Temp => todo!(),
+                MemorySegment::Temp => push_temp(idx),
             },
         }
     }
@@ -178,7 +197,65 @@ mod translator {
         ]
     }
 
-    fn push_const(idx: &String) -> Vec<String> {
+    fn basic_pop(segment: MemorySegment, idx: u16) -> Vec<String> {
+        let seg_ptr = segment.seg_ptr();
+        vec![
+            format!("@{idx}"),
+            String::from("D=A"),
+            format!("@{seg_ptr}"),
+            String::from("D=D+M"),
+            String::from("@13"),
+            String::from("M=D"),
+            String::from("@SP"),
+            String::from("M=M-1"),
+            String::from("A=M"),
+            String::from("D=M"),
+            String::from("@13"),
+            String::from("A=M"),
+            String::from("M=D"),
+        ]
+    }
+
+    fn pop_temp(idx: u16) -> Vec<String> {
+        let mem_addr = TEMP_OFFSET + idx;
+        vec![
+            String::from("@SP"),
+            String::from("M=M-1"),
+            String::from("A=M"),
+            String::from("D=M"),
+            format!("@{mem_addr}"),
+            String::from("M=D"),
+        ]
+    }
+
+    fn basic_push(segment: MemorySegment, idx: u16) -> Vec<String> {
+        let seg_ptr = segment.seg_ptr();
+        vec![
+            format!("@{idx}"),
+            String::from("D=A"),
+            format!("@{seg_ptr}"),
+            String::from("A=D+M"),
+            String::from("D=M"),
+            String::from("@SP"),
+            String::from("M=M+1"),
+            String::from("A=M-1"),
+            String::from("M=D"),
+        ]
+    }
+
+    fn push_temp(idx: u16) -> Vec<String> {
+        let mem_addr = TEMP_OFFSET + idx;
+        vec![
+            format!("@{mem_addr}"),
+            String::from("D=M"),
+            String::from("@SP"),
+            String::from("M=M+1"),
+            String::from("A=M-1"),
+            String::from("M=D"),
+        ]
+    }
+
+    fn push_const(idx: u16) -> Vec<String> {
         vec![
             format!("@{idx}"),
             String::from("D=A"),
@@ -223,7 +300,7 @@ pub fn translate(infile: &str) -> Vec<String> {
     let mut asm_output: Vec<String> = Vec::new();
     for line in lines {
         let instruction = parser::parse_instruction(&line);
-        let asm = translator::translate(&instruction, asm_output.len());
+        let asm = translator::translate(instruction, asm_output.len());
         asm_output.extend(asm);
     }
     asm_output
@@ -241,14 +318,14 @@ mod tests {
                 "push constant 10",
                 ParsedVMInstruction::Push {
                     segment: MemorySegment::Constant,
-                    idx: String::from("10"),
+                    idx: 10,
                 },
             ),
             (
                 "pop argument 2",
                 ParsedVMInstruction::Pop {
                     segment: MemorySegment::Argument,
-                    idx: String::from("2"),
+                    idx: 2,
                 },
             ),
             ("add", ParsedVMInstruction::Add),
