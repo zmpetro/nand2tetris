@@ -146,7 +146,11 @@ mod translator {
         const_instr.iter().map(|&s| s.to_string()).collect()
     }
 
-    pub fn translate(instruction: ParsedVMInstruction, next_instr: usize) -> Vec<String> {
+    pub fn translate(
+        instruction: ParsedVMInstruction,
+        next_instr: usize,
+        static_base: &str,
+    ) -> Vec<String> {
         match instruction {
             ParsedVMInstruction::Add => const_instr_to_vec(ADD),
             ParsedVMInstruction::Sub => const_instr_to_vec(SUBTRACT),
@@ -163,7 +167,7 @@ mod translator {
                 MemorySegment::This => basic_pop(segment, idx),
                 MemorySegment::That => basic_pop(segment, idx),
                 MemorySegment::Constant => panic!("Invalid instruction: pop constant"),
-                MemorySegment::Static => todo!(),
+                MemorySegment::Static => pop_static(idx, static_base),
                 MemorySegment::Pointer => pop_ptr(idx),
                 MemorySegment::Temp => pop_temp(idx),
             },
@@ -173,7 +177,7 @@ mod translator {
                 MemorySegment::This => basic_push(segment, idx),
                 MemorySegment::That => basic_push(segment, idx),
                 MemorySegment::Constant => push_const(idx),
-                MemorySegment::Static => todo!(),
+                MemorySegment::Static => push_static(idx, static_base),
                 MemorySegment::Pointer => push_ptr(idx),
                 MemorySegment::Temp => push_temp(idx),
             },
@@ -244,6 +248,16 @@ mod translator {
         ]
     }
 
+    fn pop_static(idx: u16, static_base: &str) -> Vec<String> {
+        vec![
+            String::from("@SP"),
+            String::from("AM=M-1"),
+            String::from("D=M"),
+            format!("@{static_base}.{idx}"),
+            String::from("M=D"),
+        ]
+    }
+
     fn push_const(idx: u16) -> Vec<String> {
         vec![
             format!("@{idx}"),
@@ -297,6 +311,17 @@ mod translator {
             String::from("M=D"),
         ]
     }
+
+    fn push_static(idx: u16, static_base: &str) -> Vec<String> {
+        vec![
+            format!("@{static_base}.{idx}"),
+            String::from("D=M"),
+            String::from("@SP"),
+            String::from("M=M+1"),
+            String::from("A=M-1"),
+            String::from("M=D"),
+        ]
+    }
 }
 
 fn read_lines(infile: &str) -> Vec<String> {
@@ -329,10 +354,12 @@ pub fn write_lines(outfile: &str, asm_output: &Vec<String>) {
 
 pub fn translate(infile: &str) -> Vec<String> {
     let lines = read_lines(infile);
+    let static_base: Vec<&str> = infile.split(".").collect();
+    let static_base = static_base[0]; // Basename of static variables
     let mut asm_output: Vec<String> = Vec::new();
     for line in lines {
         let instruction = parser::parse_instruction(&line);
-        let asm = translator::translate(instruction, asm_output.len());
+        let asm = translator::translate(instruction, asm_output.len(), static_base);
         asm_output.extend(asm);
     }
     asm_output
