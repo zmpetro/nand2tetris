@@ -133,11 +133,11 @@ mod translator {
     use super::parser::ParsedVMInstruction;
     use super::MemorySegment;
 
-    const ADD: &'static [&str] = &["@SP", "M=M-1", "A=M", "D=M", "A=A-1", "M=M+D"];
-    const SUBTRACT: &'static [&str] = &["@SP", "M=M-1", "A=M", "D=M", "A=A-1", "M=M-D"];
+    const ADD: &'static [&str] = &["@SP", "AM=M-1", "D=M", "A=A-1", "M=M+D"];
+    const SUBTRACT: &'static [&str] = &["@SP", "AM=M-1", "D=M", "A=A-1", "M=M-D"];
     const NEG: &'static [&str] = &["@SP", "A=M-1", "M=-M"];
-    const AND: &'static [&str] = &["@SP", "M=M-1", "A=M", "D=M", "A=A-1", "M=D&M"];
-    const OR: &'static [&str] = &["@SP", "M=M-1", "A=M", "D=M", "A=A-1", "M=D|M"];
+    const AND: &'static [&str] = &["@SP", "AM=M-1", "D=M", "A=A-1", "M=D&M"];
+    const OR: &'static [&str] = &["@SP", "AM=M-1", "D=M", "A=A-1", "M=D|M"];
     const NOT: &'static [&str] = &["@SP", "A=M-1", "M=!M"];
 
     const TEMP_OFFSET: u16 = 5;
@@ -187,13 +187,12 @@ mod translator {
     fn logical_comp(next_instr: usize, jmp_instr: &str) -> Vec<String> {
         vec![
             String::from("@SP"),
-            String::from("M=M-1"),
-            String::from("A=M"),
+            String::from("AM=M-1"),
             String::from("D=M"),
             String::from("A=A-1"),
             String::from("D=M-D"),
             String::from("M=-1"),
-            format!("@{}", next_instr + 12),
+            format!("@{}", next_instr + 11),
             format!("D;{}", jmp_instr),
             String::from("@SP"),
             String::from("A=M-1"),
@@ -211,8 +210,7 @@ mod translator {
             String::from("@13"),
             String::from("M=D"),
             String::from("@SP"),
-            String::from("M=M-1"),
-            String::from("A=M"),
+            String::from("AM=M-1"),
             String::from("D=M"),
             String::from("@13"),
             String::from("A=M"),
@@ -224,8 +222,7 @@ mod translator {
         let mem_addr = TEMP_OFFSET + idx;
         vec![
             String::from("@SP"),
-            String::from("M=M-1"),
-            String::from("A=M"),
+            String::from("AM=M-1"),
             String::from("D=M"),
             format!("@{mem_addr}"),
             String::from("M=D"),
@@ -240,8 +237,7 @@ mod translator {
         };
         vec![
             String::from("@SP"),
-            String::from("M=M-1"),
-            String::from("A=M"),
+            String::from("AM=M-1"),
             String::from("D=M"),
             format!("@{seg_ptr}"),
             String::from("M=D"),
