@@ -164,7 +164,7 @@ mod translator {
                 MemorySegment::That => basic_pop(segment, idx),
                 MemorySegment::Constant => panic!("Invalid instruction: pop constant"),
                 MemorySegment::Static => todo!(),
-                MemorySegment::Pointer => todo!(),
+                MemorySegment::Pointer => pop_ptr(idx),
                 MemorySegment::Temp => pop_temp(idx),
             },
             ParsedVMInstruction::Push { segment, idx } => match segment {
@@ -174,7 +174,7 @@ mod translator {
                 MemorySegment::That => basic_push(segment, idx),
                 MemorySegment::Constant => push_const(idx),
                 MemorySegment::Static => todo!(),
-                MemorySegment::Pointer => todo!(),
+                MemorySegment::Pointer => push_ptr(idx),
                 MemorySegment::Temp => push_temp(idx),
             },
         }
@@ -228,6 +228,33 @@ mod translator {
         ]
     }
 
+    fn pop_ptr(idx: u16) -> Vec<String> {
+        let seg_ptr = match idx {
+            0 => MemorySegment::This.seg_ptr(),
+            1 => MemorySegment::That.seg_ptr(),
+            _ => panic!("pop pointer instruction must have index 0 or 1"),
+        };
+        vec![
+            String::from("@SP"),
+            String::from("M=M-1"),
+            String::from("A=M"),
+            String::from("D=M"),
+            format!("@{seg_ptr}"),
+            String::from("M=D"),
+        ]
+    }
+
+    fn push_const(idx: u16) -> Vec<String> {
+        vec![
+            format!("@{idx}"),
+            String::from("D=A"),
+            String::from("@SP"),
+            String::from("M=M+1"),
+            String::from("A=M-1"),
+            String::from("M=D"),
+        ]
+    }
+
     fn basic_push(segment: MemorySegment, idx: u16) -> Vec<String> {
         let seg_ptr = segment.seg_ptr();
         vec![
@@ -255,10 +282,15 @@ mod translator {
         ]
     }
 
-    fn push_const(idx: u16) -> Vec<String> {
+    fn push_ptr(idx: u16) -> Vec<String> {
+        let seg_ptr = match idx {
+            0 => MemorySegment::This.seg_ptr(),
+            1 => MemorySegment::That.seg_ptr(),
+            _ => panic!("push pointer instruction must have index 0 or 1"),
+        };
         vec![
-            format!("@{idx}"),
-            String::from("D=A"),
+            format!("@{seg_ptr}"),
+            String::from("D=M"),
             String::from("@SP"),
             String::from("M=M+1"),
             String::from("A=M-1"),
