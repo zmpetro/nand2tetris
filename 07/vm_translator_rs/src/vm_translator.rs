@@ -1,4 +1,5 @@
 use std::fs::{read_to_string, write};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, PartialEq)]
 pub enum MemorySegment {
@@ -207,14 +208,11 @@ mod translator {
             String::from("D=A"),
             format!("@{seg_ptr}"),
             String::from("D=D+M"),
-            String::from("@13"),
-            String::from("M=D"),
             String::from("@SP"),
             String::from("AM=M-1"),
-            String::from("D=M"),
-            String::from("@13"),
-            String::from("A=M"),
-            String::from("M=D"),
+            String::from("D=D+M"),
+            String::from("A=D-M"),
+            String::from("M=D-A"),
         ]
     }
 
@@ -320,7 +318,7 @@ mod translator {
     }
 }
 
-fn read_lines(infile: &str) -> Vec<String> {
+fn read_lines(infile: &Path) -> Vec<String> {
     // Reads the lines of the infile, while ignoring comments and whitespace.
     let mut lines = Vec::new();
     for line in read_to_string(infile).unwrap().lines() {
@@ -341,17 +339,16 @@ fn strip_comment_and_whitespace(line: &str) -> Option<String> {
     }
 }
 
-pub fn write_lines(outfile: &str, asm_output: &Vec<String>) {
+pub fn write_lines(outfile: &PathBuf, asm_output: &Vec<String>) {
     write(outfile, asm_output.join("\n")).expect(&format!(
         "Failed to write hack assembly output to {}",
-        outfile
+        outfile.to_str().unwrap()
     ));
 }
 
-pub fn translate(infile: &str) -> Vec<String> {
+pub fn translate(infile: &Path) -> Vec<String> {
     let lines = read_lines(infile);
-    let static_base: Vec<&str> = infile.split(&['/', '.'][..]).collect();
-    let static_base = static_base[static_base.len() - 2]; // Basename of static variables
+    let static_base = infile.file_stem().unwrap().to_str().unwrap();
     let mut asm_output: Vec<String> = Vec::new();
     for line in lines {
         let instruction = parser::parse_instruction(&line);
