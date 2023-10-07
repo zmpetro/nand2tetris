@@ -328,12 +328,11 @@ fn read_lines(infile: &Path) -> Vec<String> {
 }
 
 fn strip_comment_and_whitespace(line: &str) -> Option<String> {
-    let split: Vec<&str> = line.split("//").collect();
-    let line = split[0].trim();
+    let line = line.split("//").next().unwrap().trim();
     if line.is_empty() {
         return None;
     } else {
-        return Some(String::from(line));
+        return Some(line.to_owned());
     }
 }
 
