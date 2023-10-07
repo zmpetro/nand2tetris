@@ -320,13 +320,11 @@ mod translator {
 
 fn read_lines(infile: &Path) -> Vec<String> {
     // Reads the lines of the infile, while ignoring comments and whitespace.
-    let mut lines = Vec::new();
-    for line in read_to_string(infile).unwrap().lines() {
-        if let Some(line) = strip_comment_and_whitespace(line) {
-            lines.push(line);
-        }
-    }
-    lines
+    read_to_string(infile)
+        .unwrap()
+        .lines()
+        .filter_map(|line| strip_comment_and_whitespace(line))
+        .collect()
 }
 
 fn strip_comment_and_whitespace(line: &str) -> Option<String> {
@@ -339,7 +337,7 @@ fn strip_comment_and_whitespace(line: &str) -> Option<String> {
     }
 }
 
-pub fn write_lines(outfile: &PathBuf, asm_output: &Vec<String>) {
+pub fn write_lines(outfile: &PathBuf, asm_output: &[String]) {
     write(outfile, asm_output.join("\n")).expect(&format!(
         "Failed to write hack assembly output to {}",
         outfile.to_str().unwrap()
