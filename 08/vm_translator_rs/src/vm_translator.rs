@@ -43,6 +43,9 @@ mod parser {
         Not,
         Pop { segment: MemorySegment, idx: u16 },
         Push { segment: MemorySegment, idx: u16 },
+        Label { label: String },
+        Goto { label: String },
+        IfGoto { label: String },
     }
 
     pub fn parse_instruction(instruction: &str) -> ParsedVMInstruction {
@@ -123,6 +126,15 @@ mod parser {
                 },
                 _ => panic!("Invalid push memory segment: {}", split_instr[1]),
             },
+            "label" => ParsedVMInstruction::Label {
+                label: split_instr[1].to_owned(),
+            },
+            "goto" => ParsedVMInstruction::Goto {
+                label: split_instr[1].to_owned(),
+            },
+            "if-goto" => ParsedVMInstruction::IfGoto {
+                label: split_instr[1].to_owned(),
+            },
             _ => panic!("Invalid instruction type: {}", split_instr[0]),
         }
     }
@@ -182,6 +194,9 @@ mod translator {
                 MemorySegment::Pointer => push_ptr(idx),
                 MemorySegment::Temp => push_temp(idx),
             },
+            ParsedVMInstruction::Label { label } => label_fn(&label),
+            ParsedVMInstruction::Goto { label } => goto(&label),
+            ParsedVMInstruction::IfGoto { label } => if_goto(&label),
         }
     }
 
@@ -193,7 +208,7 @@ mod translator {
             String::from("A=A-1"),
             String::from("D=M-D"),
             String::from("M=-1"),
-            format!("@{}", next_instr + 11),
+            format!("@{}", next_instr + 11), // length of this vector
             format!("D;{}", jmp_instr),
             String::from("@SP"),
             String::from("A=M-1"),
@@ -314,6 +329,24 @@ mod translator {
             String::from("M=M+1"),
             String::from("A=M-1"),
             String::from("M=D"),
+        ]
+    }
+
+    fn label_fn(label: &str) -> Vec<String> {
+        vec![format!("({label})")]
+    }
+
+    fn goto(label: &str) -> Vec<String> {
+        vec![format!("@{label}"), String::from("0;JMP")]
+    }
+
+    fn if_goto(label: &str) -> Vec<String> {
+        vec![
+            String::from("@SP"),
+            String::from("AM=M-1"),
+            String::from("D=M"),
+            format!("@{label}"),
+            String::from("D;JNE"),
         ]
     }
 }
