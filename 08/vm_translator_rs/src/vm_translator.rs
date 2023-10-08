@@ -46,6 +46,9 @@ mod parser {
         Label { label: String },
         Goto { label: String },
         IfGoto { label: String },
+        Function { name: String, num_local_vars: u16 },
+        Call { name: String, num_args: u16 },
+        Return,
     }
 
     pub fn parse_instruction(instruction: &str) -> ParsedVMInstruction {
@@ -135,6 +138,15 @@ mod parser {
             "if-goto" => ParsedVMInstruction::IfGoto {
                 label: split_instr[1].to_owned(),
             },
+            "function" => ParsedVMInstruction::Function {
+                name: split_instr[1].to_owned(),
+                num_local_vars: split_instr[2].parse::<u16>().unwrap(),
+            },
+            "call" => ParsedVMInstruction::Call {
+                name: split_instr[1].to_owned(),
+                num_args: split_instr[2].parse::<u16>().unwrap(),
+            },
+            "return" => ParsedVMInstruction::Return,
             _ => panic!("Invalid instruction type: {}", split_instr[0]),
         }
     }
@@ -152,6 +164,52 @@ mod translator {
     const AND: &'static [&str] = &["@SP", "AM=M-1", "D=M", "A=A-1", "M=D&M"];
     const OR: &'static [&str] = &["@SP", "AM=M-1", "D=M", "A=A-1", "M=D|M"];
     const NOT: &'static [&str] = &["@SP", "A=M-1", "M=!M"];
+    const RETURN: &'static [&str] = &[
+        "@LCL",
+        "D=M",
+        "@endFrame",
+        "M=D",
+        "@5",
+        "D=A",
+        "@endFrame",
+        "A=M-D",
+        "D=M",
+        "@retAddr",
+        "M=D",
+        "@SP",
+        "A=M-1",
+        "D=M",
+        "@ARG",
+        "A=M",
+        "M=D",
+        "@ARG",
+        "D=M+1",
+        "@SP",
+        "M=D",
+        "@endFrame",
+        "AM=M-1",
+        "D=M",
+        "@THAT",
+        "M=D",
+        "@endFrame",
+        "AM=M-1",
+        "D=M",
+        "@THIS",
+        "M=D",
+        "@endFrame",
+        "AM=M-1",
+        "D=M",
+        "@ARG",
+        "M=D",
+        "@endFrame",
+        "AM=M-1",
+        "D=M",
+        "@LCL",
+        "M=D",
+        "@retAddr",
+        "A=M",
+        "0;JMP",
+    ];
 
     const TEMP_OFFSET: u16 = 5;
 
@@ -197,6 +255,12 @@ mod translator {
             ParsedVMInstruction::Label { label } => label_fn(&label),
             ParsedVMInstruction::Goto { label } => goto(&label),
             ParsedVMInstruction::IfGoto { label } => if_goto(&label),
+            ParsedVMInstruction::Function {
+                name,
+                num_local_vars,
+            } => function(&name, num_local_vars),
+            ParsedVMInstruction::Call { name, num_args } => todo!(),
+            ParsedVMInstruction::Return => const_instr_to_vec(RETURN),
         }
     }
 
@@ -348,6 +412,17 @@ mod translator {
             format!("@{label}"),
             String::from("D;JNE"),
         ]
+    }
+
+    fn function(name: &str, num_local_vars: u16) -> Vec<String> {
+        let mut asm = vec![format!("({name})")];
+        for _ in 0..num_local_vars {
+            asm.push(String::from("@SP"));
+            asm.push(String::from("M=M+1"));
+            asm.push(String::from("A=M-1"));
+            asm.push(String::from("M=0"));
+        }
+        asm
     }
 }
 
