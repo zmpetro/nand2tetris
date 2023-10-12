@@ -176,7 +176,7 @@ mod translator {
 
     const TEMP_OFFSET: u16 = 5;
 
-    fn const_instr_to_vec(next_instr: &mut usize, const_instr: &'static [&str]) -> Vec<String> {
+    fn const_instr_to_vec(next_instr: &mut u16, const_instr: &'static [&str]) -> Vec<String> {
         let mut asm: Vec<String> = vec![];
         for &instr in const_instr {
             add_instr(instr, &mut asm, next_instr)
@@ -186,7 +186,7 @@ mod translator {
 
     pub fn translate(
         instruction: &ParsedVMInstruction,
-        next_instr: &mut usize,
+        next_instr: &mut u16,
         static_base: &str,
         call_counter: u16,
     ) -> Vec<String> {
@@ -234,7 +234,7 @@ mod translator {
         }
     }
 
-    pub fn add_instr(instr: &str, asm: &mut Vec<String>, next_instr: &mut usize) {
+    pub fn add_instr(instr: &str, asm: &mut Vec<String>, next_instr: &mut u16) {
         // Adds an instruction to a vector of instructions and increments the
         // next_instr counter based on whether it's a label or not
         asm.push(String::from(instr));
@@ -243,7 +243,7 @@ mod translator {
         }
     }
 
-    fn logical_comp(next_instr: &mut usize, jmp_instr: &str) -> Vec<String> {
+    fn logical_comp(next_instr: &mut u16, jmp_instr: &str) -> Vec<String> {
         let mut asm: Vec<String> = vec![];
         add_instr("@SP", &mut asm, next_instr);
         add_instr("AM=M-1", &mut asm, next_instr);
@@ -260,7 +260,7 @@ mod translator {
         asm
     }
 
-    fn basic_pop(next_instr: &mut usize, segment: &MemorySegment, idx: &u16) -> Vec<String> {
+    fn basic_pop(next_instr: &mut u16, segment: &MemorySegment, idx: &u16) -> Vec<String> {
         let seg_ptr = segment.seg_ptr();
         let mut asm: Vec<String> = vec![];
         add_instr(&format!("@{idx}"), &mut asm, next_instr);
@@ -275,7 +275,7 @@ mod translator {
         asm
     }
 
-    fn pop_temp(next_instr: &mut usize, idx: &u16) -> Vec<String> {
+    fn pop_temp(next_instr: &mut u16, idx: &u16) -> Vec<String> {
         let mem_addr = TEMP_OFFSET + idx;
         let mut asm: Vec<String> = vec![];
         add_instr("@SP", &mut asm, next_instr);
@@ -286,7 +286,7 @@ mod translator {
         asm
     }
 
-    fn pop_ptr(next_instr: &mut usize, idx: &u16) -> Vec<String> {
+    fn pop_ptr(next_instr: &mut u16, idx: &u16) -> Vec<String> {
         let seg_ptr = match idx {
             0 => MemorySegment::This.seg_ptr(),
             1 => MemorySegment::That.seg_ptr(),
@@ -301,7 +301,7 @@ mod translator {
         asm
     }
 
-    fn pop_static(next_instr: &mut usize, idx: &u16, static_base: &str) -> Vec<String> {
+    fn pop_static(next_instr: &mut u16, idx: &u16, static_base: &str) -> Vec<String> {
         let mut asm: Vec<String> = vec![];
         add_instr("@SP", &mut asm, next_instr);
         add_instr("AM=M-1", &mut asm, next_instr);
@@ -311,7 +311,7 @@ mod translator {
         asm
     }
 
-    fn push_const(next_instr: &mut usize, idx: &u16) -> Vec<String> {
+    fn push_const(next_instr: &mut u16, idx: &u16) -> Vec<String> {
         let mut asm: Vec<String> = vec![];
         add_instr(&format!("@{idx}"), &mut asm, next_instr);
         add_instr("D=A", &mut asm, next_instr);
@@ -322,7 +322,7 @@ mod translator {
         asm
     }
 
-    fn basic_push(next_instr: &mut usize, segment: &MemorySegment, idx: &u16) -> Vec<String> {
+    fn basic_push(next_instr: &mut u16, segment: &MemorySegment, idx: &u16) -> Vec<String> {
         let seg_ptr = segment.seg_ptr();
         let mut asm: Vec<String> = vec![];
         add_instr(&format!("@{idx}"), &mut asm, next_instr);
@@ -337,7 +337,7 @@ mod translator {
         asm
     }
 
-    fn push_temp(next_instr: &mut usize, idx: &u16) -> Vec<String> {
+    fn push_temp(next_instr: &mut u16, idx: &u16) -> Vec<String> {
         let mem_addr = TEMP_OFFSET + idx;
         let mut asm: Vec<String> = vec![];
         add_instr(&format!("@{mem_addr}"), &mut asm, next_instr);
@@ -349,7 +349,7 @@ mod translator {
         asm
     }
 
-    fn push_ptr(next_instr: &mut usize, idx: &u16) -> Vec<String> {
+    fn push_ptr(next_instr: &mut u16, idx: &u16) -> Vec<String> {
         let seg_ptr = match idx {
             0 => MemorySegment::This.seg_ptr(),
             1 => MemorySegment::That.seg_ptr(),
@@ -365,7 +365,7 @@ mod translator {
         asm
     }
 
-    fn push_static(next_instr: &mut usize, idx: &u16, static_base: &str) -> Vec<String> {
+    fn push_static(next_instr: &mut u16, idx: &u16, static_base: &str) -> Vec<String> {
         let mut asm: Vec<String> = vec![];
         add_instr(&format!("@{static_base}.{idx}"), &mut asm, next_instr);
         add_instr("D=M", &mut asm, next_instr);
@@ -376,20 +376,20 @@ mod translator {
         asm
     }
 
-    fn label_fn(next_instr: &mut usize, label: &str) -> Vec<String> {
+    fn label_fn(next_instr: &mut u16, label: &str) -> Vec<String> {
         let mut asm: Vec<String> = vec![];
         add_instr(&format!("({label})"), &mut asm, next_instr);
         asm
     }
 
-    fn goto(next_instr: &mut usize, label: &str) -> Vec<String> {
+    fn goto(next_instr: &mut u16, label: &str) -> Vec<String> {
         let mut asm: Vec<String> = vec![];
         add_instr(&format!("@{label}"), &mut asm, next_instr);
         add_instr("0;JMP", &mut asm, next_instr);
         asm
     }
 
-    fn if_goto(next_instr: &mut usize, label: &str) -> Vec<String> {
+    fn if_goto(next_instr: &mut u16, label: &str) -> Vec<String> {
         let mut asm: Vec<String> = vec![];
         add_instr("@SP", &mut asm, next_instr);
         add_instr("AM=M-1", &mut asm, next_instr);
@@ -399,7 +399,7 @@ mod translator {
         asm
     }
 
-    fn function(next_instr: &mut usize, name: &str, num_local_vars: u16) -> Vec<String> {
+    fn function(next_instr: &mut u16, name: &str, num_local_vars: u16) -> Vec<String> {
         let mut asm: Vec<String> = vec![];
         add_instr(&format!("({name})"), &mut asm, next_instr);
         for _ in 0..num_local_vars {
@@ -411,12 +411,7 @@ mod translator {
         asm
     }
 
-    pub fn call(
-        next_instr: &mut usize,
-        name: &str,
-        num_args: u16,
-        call_counter: u16,
-    ) -> Vec<String> {
+    pub fn call(next_instr: &mut u16, name: &str, num_args: u16, call_counter: u16) -> Vec<String> {
         let return_addr_label = format!("{name}$ret.{call_counter}");
         let arg_offset = 5 + num_args;
         let mut asm: Vec<String> = vec![];
@@ -485,23 +480,22 @@ fn strip_comment_and_whitespace(line: &str) -> Option<String> {
     }
 }
 
-pub fn translate(infile: &Path, next_instr: &mut usize) -> Vec<String> {
+pub fn translate(infile: &Path, next_instr: &mut u16, call_counter: &mut u16) -> Vec<String> {
     let lines = read_lines(infile);
     let static_base = infile.file_stem().unwrap().to_str().unwrap();
-    let mut call_counter: u16 = 0;
     let mut asm_output: Vec<String> = Vec::new();
     for line in lines {
         let instruction = parser::parse_instruction(&line);
-        let asm = translator::translate(&instruction, next_instr, static_base, call_counter);
+        let asm = translator::translate(&instruction, next_instr, static_base, *call_counter);
         asm_output.extend(asm);
         if let ParsedVMInstruction::Call { .. } = instruction {
-            call_counter += 1;
+            *call_counter += 1;
         }
     }
     asm_output
 }
 
-fn get_bootstrap(next_instr: &mut usize) -> Vec<String> {
+fn get_bootstrap(next_instr: &mut u16) -> Vec<String> {
     let mut bootstrap: Vec<String> = vec![];
     add_instr("@256", &mut bootstrap, next_instr);
     add_instr("D=A", &mut bootstrap, next_instr);
@@ -512,17 +506,17 @@ fn get_bootstrap(next_instr: &mut usize) -> Vec<String> {
 }
 
 pub fn translate_directory(directory: &Path) -> Vec<String> {
-    let mut next_instr: usize = 0;
+    let mut next_instr: u16 = 0;
+    let mut call_counter: u16 = 0;
     let mut asm_output = get_bootstrap(&mut next_instr);
     for entry in directory.read_dir().unwrap() {
         if let Ok(entry) = entry {
             let path = entry.path();
             if path.extension().unwrap() == "vm" {
-                asm_output.extend(translate(&path, &mut next_instr));
+                asm_output.extend(translate(&path, &mut next_instr, &mut call_counter));
             }
         }
     }
-    println!("{next_instr}");
     asm_output
 }
 
