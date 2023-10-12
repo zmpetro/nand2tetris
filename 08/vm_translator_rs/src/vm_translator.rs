@@ -168,10 +168,10 @@ mod translator {
     const OR: &'static [&str] = &["@SP", "AM=M-1", "D=M", "A=A-1", "M=D|M"];
     const NOT: &'static [&str] = &["@SP", "A=M-1", "M=!M"];
     const RETURN: &'static [&str] = &[
-        "@LCL", "D=M", "@5", "M=D", "@5", "D=A", "@5", "A=M-D", "D=M", "@6", "M=D", "@SP", "A=M-1",
-        "D=M", "@ARG", "A=M", "M=D", "@ARG", "D=M+1", "@SP", "M=D", "@5", "AM=M-1", "D=M", "@THAT",
-        "M=D", "@5", "AM=M-1", "D=M", "@THIS", "M=D", "@5", "AM=M-1", "D=M", "@ARG", "M=D", "@5",
-        "AM=M-1", "D=M", "@LCL", "M=D", "@6", "A=M", "0;JMP",
+        "@LCL", "D=M", "@7", "M=D", "@5", "D=A", "@7", "A=M-D", "D=M", "@8", "M=D", "@SP", "A=M-1",
+        "D=M", "@ARG", "A=M", "M=D", "@ARG", "D=M+1", "@SP", "M=D", "@7", "AM=M-1", "D=M", "@THAT",
+        "M=D", "@7", "AM=M-1", "D=M", "@THIS", "M=D", "@7", "AM=M-1", "D=M", "@ARG", "M=D", "@7",
+        "AM=M-1", "D=M", "@LCL", "M=D", "@8", "A=M", "0;JMP",
     ];
 
     const TEMP_OFFSET: u16 = 5;
