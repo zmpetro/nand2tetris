@@ -1,5 +1,8 @@
-use std::fs::{read_to_string, write};
-use std::path::{Path, PathBuf};
+use std::fs::read_to_string;
+use std::path::Path;
+
+use parser::ParsedVMInstruction;
+use translator::{add_instr, call};
 
 #[derive(Debug, PartialEq)]
 pub enum MemorySegment {
@@ -165,263 +168,301 @@ mod translator {
     const OR: &'static [&str] = &["@SP", "AM=M-1", "D=M", "A=A-1", "M=D|M"];
     const NOT: &'static [&str] = &["@SP", "A=M-1", "M=!M"];
     const RETURN: &'static [&str] = &[
-        "@LCL",
-        "D=M",
-        "@endFrame",
-        "M=D",
-        "@5",
-        "D=A",
-        "@endFrame",
-        "A=M-D",
-        "D=M",
-        "@retAddr",
-        "M=D",
-        "@SP",
-        "A=M-1",
-        "D=M",
-        "@ARG",
-        "A=M",
-        "M=D",
-        "@ARG",
-        "D=M+1",
-        "@SP",
-        "M=D",
-        "@endFrame",
-        "AM=M-1",
-        "D=M",
-        "@THAT",
-        "M=D",
-        "@endFrame",
-        "AM=M-1",
-        "D=M",
-        "@THIS",
-        "M=D",
-        "@endFrame",
-        "AM=M-1",
-        "D=M",
-        "@ARG",
-        "M=D",
-        "@endFrame",
-        "AM=M-1",
-        "D=M",
-        "@LCL",
-        "M=D",
-        "@retAddr",
-        "A=M",
-        "0;JMP",
+        "@LCL", "D=M", "@5", "M=D", "@5", "D=A", "@5", "A=M-D", "D=M", "@6", "M=D", "@SP", "A=M-1",
+        "D=M", "@ARG", "A=M", "M=D", "@ARG", "D=M+1", "@SP", "M=D", "@5", "AM=M-1", "D=M", "@THAT",
+        "M=D", "@5", "AM=M-1", "D=M", "@THIS", "M=D", "@5", "AM=M-1", "D=M", "@ARG", "M=D", "@5",
+        "AM=M-1", "D=M", "@LCL", "M=D", "@6", "A=M", "0;JMP",
     ];
 
     const TEMP_OFFSET: u16 = 5;
 
-    fn const_instr_to_vec(const_instr: &'static [&str]) -> Vec<String> {
-        const_instr.iter().map(|&s| s.to_string()).collect()
+    fn const_instr_to_vec(next_instr: &mut usize, const_instr: &'static [&str]) -> Vec<String> {
+        let mut asm: Vec<String> = vec![];
+        for &instr in const_instr {
+            add_instr(instr, &mut asm, next_instr)
+        }
+        asm
     }
 
     pub fn translate(
-        instruction: ParsedVMInstruction,
-        next_instr: usize,
+        instruction: &ParsedVMInstruction,
+        next_instr: &mut usize,
         static_base: &str,
+        call_counter: u16,
     ) -> Vec<String> {
         match instruction {
-            ParsedVMInstruction::Add => const_instr_to_vec(ADD),
-            ParsedVMInstruction::Sub => const_instr_to_vec(SUBTRACT),
-            ParsedVMInstruction::Neg => const_instr_to_vec(NEG),
+            ParsedVMInstruction::Add => const_instr_to_vec(next_instr, ADD),
+            ParsedVMInstruction::Sub => const_instr_to_vec(next_instr, SUBTRACT),
+            ParsedVMInstruction::Neg => const_instr_to_vec(next_instr, NEG),
             ParsedVMInstruction::Eq => logical_comp(next_instr, "JEQ"),
             ParsedVMInstruction::Gt => logical_comp(next_instr, "JGT"),
             ParsedVMInstruction::Lt => logical_comp(next_instr, "JLT"),
-            ParsedVMInstruction::And => const_instr_to_vec(AND),
-            ParsedVMInstruction::Or => const_instr_to_vec(OR),
-            ParsedVMInstruction::Not => const_instr_to_vec(NOT),
+            ParsedVMInstruction::And => const_instr_to_vec(next_instr, AND),
+            ParsedVMInstruction::Or => const_instr_to_vec(next_instr, OR),
+            ParsedVMInstruction::Not => const_instr_to_vec(next_instr, NOT),
             ParsedVMInstruction::Pop { segment, idx } => match segment {
-                MemorySegment::Local => basic_pop(segment, idx),
-                MemorySegment::Argument => basic_pop(segment, idx),
-                MemorySegment::This => basic_pop(segment, idx),
-                MemorySegment::That => basic_pop(segment, idx),
+                MemorySegment::Local => basic_pop(next_instr, segment, idx),
+                MemorySegment::Argument => basic_pop(next_instr, segment, idx),
+                MemorySegment::This => basic_pop(next_instr, segment, idx),
+                MemorySegment::That => basic_pop(next_instr, segment, idx),
                 MemorySegment::Constant => panic!("Invalid instruction: pop constant"),
-                MemorySegment::Static => pop_static(idx, static_base),
-                MemorySegment::Pointer => pop_ptr(idx),
-                MemorySegment::Temp => pop_temp(idx),
+                MemorySegment::Static => pop_static(next_instr, idx, static_base),
+                MemorySegment::Pointer => pop_ptr(next_instr, idx),
+                MemorySegment::Temp => pop_temp(next_instr, idx),
             },
             ParsedVMInstruction::Push { segment, idx } => match segment {
-                MemorySegment::Local => basic_push(segment, idx),
-                MemorySegment::Argument => basic_push(segment, idx),
-                MemorySegment::This => basic_push(segment, idx),
-                MemorySegment::That => basic_push(segment, idx),
-                MemorySegment::Constant => push_const(idx),
-                MemorySegment::Static => push_static(idx, static_base),
-                MemorySegment::Pointer => push_ptr(idx),
-                MemorySegment::Temp => push_temp(idx),
+                MemorySegment::Local => basic_push(next_instr, segment, idx),
+                MemorySegment::Argument => basic_push(next_instr, segment, idx),
+                MemorySegment::This => basic_push(next_instr, segment, idx),
+                MemorySegment::That => basic_push(next_instr, segment, idx),
+                MemorySegment::Constant => push_const(next_instr, idx),
+                MemorySegment::Static => push_static(next_instr, idx, static_base),
+                MemorySegment::Pointer => push_ptr(next_instr, idx),
+                MemorySegment::Temp => push_temp(next_instr, idx),
             },
-            ParsedVMInstruction::Label { label } => label_fn(&label),
-            ParsedVMInstruction::Goto { label } => goto(&label),
-            ParsedVMInstruction::IfGoto { label } => if_goto(&label),
+            ParsedVMInstruction::Label { label } => label_fn(next_instr, &label),
+            ParsedVMInstruction::Goto { label } => goto(next_instr, &label),
+            ParsedVMInstruction::IfGoto { label } => if_goto(next_instr, &label),
             ParsedVMInstruction::Function {
                 name,
                 num_local_vars,
-            } => function(&name, num_local_vars),
-            ParsedVMInstruction::Call { name, num_args } => todo!(),
-            ParsedVMInstruction::Return => const_instr_to_vec(RETURN),
+            } => function(next_instr, &name, *num_local_vars),
+            ParsedVMInstruction::Call { name, num_args } => {
+                call(next_instr, &name, *num_args, call_counter)
+            }
+            ParsedVMInstruction::Return => const_instr_to_vec(next_instr, RETURN),
         }
     }
 
-    fn logical_comp(next_instr: usize, jmp_instr: &str) -> Vec<String> {
-        vec![
-            String::from("@SP"),
-            String::from("AM=M-1"),
-            String::from("D=M"),
-            String::from("A=A-1"),
-            String::from("D=M-D"),
-            String::from("M=-1"),
-            format!("@{}", next_instr + 11), // length of this vector
-            format!("D;{}", jmp_instr),
-            String::from("@SP"),
-            String::from("A=M-1"),
-            String::from("M=0"),
-        ]
+    pub fn add_instr(instr: &str, asm: &mut Vec<String>, next_instr: &mut usize) {
+        // Adds an instruction to a vector of instructions and increments the
+        // next_instr counter based on whether it's a label or not
+        asm.push(String::from(instr));
+        if instr.chars().next().unwrap() != '(' {
+            *next_instr += 1;
+        }
     }
 
-    fn basic_pop(segment: MemorySegment, idx: u16) -> Vec<String> {
+    fn logical_comp(next_instr: &mut usize, jmp_instr: &str) -> Vec<String> {
+        let mut asm: Vec<String> = vec![];
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("AM=M-1", &mut asm, next_instr);
+        add_instr("D=M", &mut asm, next_instr);
+        add_instr("A=A-1", &mut asm, next_instr);
+        add_instr("D=M-D", &mut asm, next_instr);
+        add_instr("M=-1", &mut asm, next_instr);
+        // next_instr + 5 is how many instructions until the end of the current asm block
+        add_instr(&format!("@{}", *next_instr + 5), &mut asm, next_instr);
+        add_instr(&format!("D;{}", jmp_instr), &mut asm, next_instr);
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("A=M-1", &mut asm, next_instr);
+        add_instr("M=0", &mut asm, next_instr);
+        asm
+    }
+
+    fn basic_pop(next_instr: &mut usize, segment: &MemorySegment, idx: &u16) -> Vec<String> {
         let seg_ptr = segment.seg_ptr();
-        vec![
-            format!("@{idx}"),
-            String::from("D=A"),
-            format!("@{seg_ptr}"),
-            String::from("D=D+M"),
-            String::from("@SP"),
-            String::from("AM=M-1"),
-            String::from("D=D+M"),
-            String::from("A=D-M"),
-            String::from("M=D-A"),
-        ]
+        let mut asm: Vec<String> = vec![];
+        add_instr(&format!("@{idx}"), &mut asm, next_instr);
+        add_instr("D=A", &mut asm, next_instr);
+        add_instr(&format!("@{seg_ptr}"), &mut asm, next_instr);
+        add_instr("D=D+M", &mut asm, next_instr);
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("AM=M-1", &mut asm, next_instr);
+        add_instr("D=D+M", &mut asm, next_instr);
+        add_instr("A=D-M", &mut asm, next_instr);
+        add_instr("M=D-A", &mut asm, next_instr);
+        asm
     }
 
-    fn pop_temp(idx: u16) -> Vec<String> {
+    fn pop_temp(next_instr: &mut usize, idx: &u16) -> Vec<String> {
         let mem_addr = TEMP_OFFSET + idx;
-        vec![
-            String::from("@SP"),
-            String::from("AM=M-1"),
-            String::from("D=M"),
-            format!("@{mem_addr}"),
-            String::from("M=D"),
-        ]
+        let mut asm: Vec<String> = vec![];
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("AM=M-1", &mut asm, next_instr);
+        add_instr("D=M", &mut asm, next_instr);
+        add_instr(&format!("@{mem_addr}"), &mut asm, next_instr);
+        add_instr("M=D", &mut asm, next_instr);
+        asm
     }
 
-    fn pop_ptr(idx: u16) -> Vec<String> {
+    fn pop_ptr(next_instr: &mut usize, idx: &u16) -> Vec<String> {
         let seg_ptr = match idx {
             0 => MemorySegment::This.seg_ptr(),
             1 => MemorySegment::That.seg_ptr(),
             _ => panic!("pop pointer instruction must have index 0 or 1"),
         };
-        vec![
-            String::from("@SP"),
-            String::from("AM=M-1"),
-            String::from("D=M"),
-            format!("@{seg_ptr}"),
-            String::from("M=D"),
-        ]
+        let mut asm: Vec<String> = vec![];
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("AM=M-1", &mut asm, next_instr);
+        add_instr("D=M", &mut asm, next_instr);
+        add_instr(&format!("@{seg_ptr}"), &mut asm, next_instr);
+        add_instr("M=D", &mut asm, next_instr);
+        asm
     }
 
-    fn pop_static(idx: u16, static_base: &str) -> Vec<String> {
-        vec![
-            String::from("@SP"),
-            String::from("AM=M-1"),
-            String::from("D=M"),
-            format!("@{static_base}.{idx}"),
-            String::from("M=D"),
-        ]
+    fn pop_static(next_instr: &mut usize, idx: &u16, static_base: &str) -> Vec<String> {
+        let mut asm: Vec<String> = vec![];
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("AM=M-1", &mut asm, next_instr);
+        add_instr("D=M", &mut asm, next_instr);
+        add_instr(&format!("@{static_base}.{idx}"), &mut asm, next_instr);
+        add_instr("M=D", &mut asm, next_instr);
+        asm
     }
 
-    fn push_const(idx: u16) -> Vec<String> {
-        vec![
-            format!("@{idx}"),
-            String::from("D=A"),
-            String::from("@SP"),
-            String::from("M=M+1"),
-            String::from("A=M-1"),
-            String::from("M=D"),
-        ]
+    fn push_const(next_instr: &mut usize, idx: &u16) -> Vec<String> {
+        let mut asm: Vec<String> = vec![];
+        add_instr(&format!("@{idx}"), &mut asm, next_instr);
+        add_instr("D=A", &mut asm, next_instr);
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("M=M+1", &mut asm, next_instr);
+        add_instr("A=M-1", &mut asm, next_instr);
+        add_instr("M=D", &mut asm, next_instr);
+        asm
     }
 
-    fn basic_push(segment: MemorySegment, idx: u16) -> Vec<String> {
+    fn basic_push(next_instr: &mut usize, segment: &MemorySegment, idx: &u16) -> Vec<String> {
         let seg_ptr = segment.seg_ptr();
-        vec![
-            format!("@{idx}"),
-            String::from("D=A"),
-            format!("@{seg_ptr}"),
-            String::from("A=D+M"),
-            String::from("D=M"),
-            String::from("@SP"),
-            String::from("M=M+1"),
-            String::from("A=M-1"),
-            String::from("M=D"),
-        ]
+        let mut asm: Vec<String> = vec![];
+        add_instr(&format!("@{idx}"), &mut asm, next_instr);
+        add_instr("D=A", &mut asm, next_instr);
+        add_instr(&format!("@{seg_ptr}"), &mut asm, next_instr);
+        add_instr("A=D+M", &mut asm, next_instr);
+        add_instr("D=M", &mut asm, next_instr);
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("M=M+1", &mut asm, next_instr);
+        add_instr("A=M-1", &mut asm, next_instr);
+        add_instr("M=D", &mut asm, next_instr);
+        asm
     }
 
-    fn push_temp(idx: u16) -> Vec<String> {
+    fn push_temp(next_instr: &mut usize, idx: &u16) -> Vec<String> {
         let mem_addr = TEMP_OFFSET + idx;
-        vec![
-            format!("@{mem_addr}"),
-            String::from("D=M"),
-            String::from("@SP"),
-            String::from("M=M+1"),
-            String::from("A=M-1"),
-            String::from("M=D"),
-        ]
+        let mut asm: Vec<String> = vec![];
+        add_instr(&format!("@{mem_addr}"), &mut asm, next_instr);
+        add_instr("D=M", &mut asm, next_instr);
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("M=M+1", &mut asm, next_instr);
+        add_instr("A=M-1", &mut asm, next_instr);
+        add_instr("M=D", &mut asm, next_instr);
+        asm
     }
 
-    fn push_ptr(idx: u16) -> Vec<String> {
+    fn push_ptr(next_instr: &mut usize, idx: &u16) -> Vec<String> {
         let seg_ptr = match idx {
             0 => MemorySegment::This.seg_ptr(),
             1 => MemorySegment::That.seg_ptr(),
             _ => panic!("push pointer instruction must have index 0 or 1"),
         };
-        vec![
-            format!("@{seg_ptr}"),
-            String::from("D=M"),
-            String::from("@SP"),
-            String::from("M=M+1"),
-            String::from("A=M-1"),
-            String::from("M=D"),
-        ]
+        let mut asm: Vec<String> = vec![];
+        add_instr(&format!("@{seg_ptr}"), &mut asm, next_instr);
+        add_instr("D=M", &mut asm, next_instr);
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("M=M+1", &mut asm, next_instr);
+        add_instr("A=M-1", &mut asm, next_instr);
+        add_instr("M=D", &mut asm, next_instr);
+        asm
     }
 
-    fn push_static(idx: u16, static_base: &str) -> Vec<String> {
-        vec![
-            format!("@{static_base}.{idx}"),
-            String::from("D=M"),
-            String::from("@SP"),
-            String::from("M=M+1"),
-            String::from("A=M-1"),
-            String::from("M=D"),
-        ]
+    fn push_static(next_instr: &mut usize, idx: &u16, static_base: &str) -> Vec<String> {
+        let mut asm: Vec<String> = vec![];
+        add_instr(&format!("@{static_base}.{idx}"), &mut asm, next_instr);
+        add_instr("D=M", &mut asm, next_instr);
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("M=M+1", &mut asm, next_instr);
+        add_instr("A=M-1", &mut asm, next_instr);
+        add_instr("M=D", &mut asm, next_instr);
+        asm
     }
 
-    fn label_fn(label: &str) -> Vec<String> {
-        vec![format!("({label})")]
+    fn label_fn(next_instr: &mut usize, label: &str) -> Vec<String> {
+        let mut asm: Vec<String> = vec![];
+        add_instr(&format!("({label})"), &mut asm, next_instr);
+        asm
     }
 
-    fn goto(label: &str) -> Vec<String> {
-        vec![format!("@{label}"), String::from("0;JMP")]
+    fn goto(next_instr: &mut usize, label: &str) -> Vec<String> {
+        let mut asm: Vec<String> = vec![];
+        add_instr(&format!("@{label}"), &mut asm, next_instr);
+        add_instr("0;JMP", &mut asm, next_instr);
+        asm
     }
 
-    fn if_goto(label: &str) -> Vec<String> {
-        vec![
-            String::from("@SP"),
-            String::from("AM=M-1"),
-            String::from("D=M"),
-            format!("@{label}"),
-            String::from("D;JNE"),
-        ]
+    fn if_goto(next_instr: &mut usize, label: &str) -> Vec<String> {
+        let mut asm: Vec<String> = vec![];
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("AM=M-1", &mut asm, next_instr);
+        add_instr("D=M", &mut asm, next_instr);
+        add_instr(&format!("@{label}"), &mut asm, next_instr);
+        add_instr("D;JNE", &mut asm, next_instr);
+        asm
     }
 
-    fn function(name: &str, num_local_vars: u16) -> Vec<String> {
-        let mut asm = vec![format!("({name})")];
+    fn function(next_instr: &mut usize, name: &str, num_local_vars: u16) -> Vec<String> {
+        let mut asm: Vec<String> = vec![];
+        add_instr(&format!("({name})"), &mut asm, next_instr);
         for _ in 0..num_local_vars {
-            asm.push(String::from("@SP"));
-            asm.push(String::from("M=M+1"));
-            asm.push(String::from("A=M-1"));
-            asm.push(String::from("M=0"));
+            add_instr("@SP", &mut asm, next_instr);
+            add_instr("M=M+1", &mut asm, next_instr);
+            add_instr("A=M-1", &mut asm, next_instr);
+            add_instr("M=0", &mut asm, next_instr);
         }
+        asm
+    }
+
+    pub fn call(
+        next_instr: &mut usize,
+        name: &str,
+        num_args: u16,
+        call_counter: u16,
+    ) -> Vec<String> {
+        let return_addr_label = format!("{name}$ret.{call_counter}");
+        let arg_offset = 5 + num_args;
+        let mut asm: Vec<String> = vec![];
+        add_instr(&format!("@{return_addr_label}"), &mut asm, next_instr);
+        add_instr("D=A", &mut asm, next_instr);
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("M=M+1", &mut asm, next_instr);
+        add_instr("A=M-1", &mut asm, next_instr);
+        add_instr("M=D", &mut asm, next_instr);
+        add_instr("@LCL", &mut asm, next_instr);
+        add_instr("D=M", &mut asm, next_instr);
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("M=M+1", &mut asm, next_instr);
+        add_instr("A=M-1", &mut asm, next_instr);
+        add_instr("M=D", &mut asm, next_instr);
+        add_instr("@ARG", &mut asm, next_instr);
+        add_instr("D=M", &mut asm, next_instr);
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("M=M+1", &mut asm, next_instr);
+        add_instr("A=M-1", &mut asm, next_instr);
+        add_instr("M=D", &mut asm, next_instr);
+        add_instr("@THIS", &mut asm, next_instr);
+        add_instr("D=M", &mut asm, next_instr);
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("M=M+1", &mut asm, next_instr);
+        add_instr("A=M-1", &mut asm, next_instr);
+        add_instr("M=D", &mut asm, next_instr);
+        add_instr("@THAT", &mut asm, next_instr);
+        add_instr("D=M", &mut asm, next_instr);
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("M=M+1", &mut asm, next_instr);
+        add_instr("A=M-1", &mut asm, next_instr);
+        add_instr("M=D", &mut asm, next_instr);
+        add_instr(&format!("@{arg_offset}"), &mut asm, next_instr);
+        add_instr("D=A", &mut asm, next_instr);
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("D=M-D", &mut asm, next_instr);
+        add_instr("@ARG", &mut asm, next_instr);
+        add_instr("M=D", &mut asm, next_instr);
+        add_instr("@SP", &mut asm, next_instr);
+        add_instr("D=M", &mut asm, next_instr);
+        add_instr("@LCL", &mut asm, next_instr);
+        add_instr("M=D", &mut asm, next_instr);
+        add_instr(&format!("@{name}"), &mut asm, next_instr);
+        add_instr("0;JMP", &mut asm, next_instr);
+        add_instr(&format!("({return_addr_label})"), &mut asm, next_instr);
         asm
     }
 }
@@ -444,22 +485,44 @@ fn strip_comment_and_whitespace(line: &str) -> Option<String> {
     }
 }
 
-pub fn write_lines(outfile: &PathBuf, asm_output: &[String]) {
-    write(outfile, asm_output.join("\n")).expect(&format!(
-        "Failed to write hack assembly output to {}",
-        outfile.to_str().unwrap()
-    ));
-}
-
-pub fn translate(infile: &Path) -> Vec<String> {
+pub fn translate(infile: &Path, next_instr: &mut usize) -> Vec<String> {
     let lines = read_lines(infile);
     let static_base = infile.file_stem().unwrap().to_str().unwrap();
+    let mut call_counter: u16 = 0;
     let mut asm_output: Vec<String> = Vec::new();
     for line in lines {
         let instruction = parser::parse_instruction(&line);
-        let asm = translator::translate(instruction, asm_output.len(), static_base);
+        let asm = translator::translate(&instruction, next_instr, static_base, call_counter);
         asm_output.extend(asm);
+        if let ParsedVMInstruction::Call { .. } = instruction {
+            call_counter += 1;
+        }
     }
+    asm_output
+}
+
+fn get_bootstrap(next_instr: &mut usize) -> Vec<String> {
+    let mut bootstrap: Vec<String> = vec![];
+    add_instr("@256", &mut bootstrap, next_instr);
+    add_instr("D=A", &mut bootstrap, next_instr);
+    add_instr("@SP", &mut bootstrap, next_instr);
+    add_instr("M=D", &mut bootstrap, next_instr);
+    bootstrap.extend(call(next_instr, "Sys.init", 0, 0));
+    bootstrap
+}
+
+pub fn translate_directory(directory: &Path) -> Vec<String> {
+    let mut next_instr: usize = 0;
+    let mut asm_output = get_bootstrap(&mut next_instr);
+    for entry in directory.read_dir().unwrap() {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            if path.extension().unwrap() == "vm" {
+                asm_output.extend(translate(&path, &mut next_instr));
+            }
+        }
+    }
+    println!("{next_instr}");
     asm_output
 }
 
