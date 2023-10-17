@@ -32,9 +32,7 @@ fn main() {
     let asm_output = if infile_or_directory.is_dir() {
         vm_translator::translate_directory(infile_or_directory)
     } else {
-        let mut next_instr: u16 = 0;
-        let mut call_counter: u16 = 0;
-        vm_translator::translate(infile_or_directory, &mut next_instr, &mut call_counter)
+        vm_translator::translate_file(infile_or_directory)
     };
     write_lines(&outfile, &asm_output);
     println!(
