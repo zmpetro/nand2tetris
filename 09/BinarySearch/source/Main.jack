@@ -1,0 +1,88 @@
+// Inputs from the user a list of numbers sorted in ascending order.
+// If the list of numbers is not sorted in ascending order, raises an error.
+// Then, inputs from the user the number to search for.
+// Searches for the number using binary search and prints the index of the
+// number or -1 if the number is not in the list.
+class Main {
+   function void main() {
+      var Array numbers;
+      var int length;
+      var int i;
+      var int num_to_search;
+      var int result;
+
+      do Output.printString("Welcome to Binary Search. Enter a list of numbers sorted in ascending order.");
+      do Output.println();
+
+      let length = Keyboard.readInt("How many numbers? ");
+      let numbers = Array.new(length); // Construct the array
+ 
+      // Input the numbers from the user
+      let i = 0;
+      while (i < length) {
+         let numbers[i] = Keyboard.readInt("Enter a number: ");
+         let i = i + 1;
+      }
+
+      do Main.validate_array(numbers, length);
+
+      let num_to_search = Keyboard.readInt("Enter number to binary search for: ");
+
+      let result = Main.binary_search(numbers, length, num_to_search);
+      if (result = -1) {
+         do Output.printString("Number not found within array");
+      }
+      if (result > -1) {
+         do Output.printString("Number found within array at index ");
+         do Output.printInt(result);
+      }
+      do Output.println();
+
+      return;
+   }
+
+   function void validate_array(Array numbers, int length) {
+      // Makes sure the array is sorted in ascending order.
+      var int i;
+
+      let i = 1;
+      while (i < length) {
+         if (numbers[i] < numbers[i - 1]) {
+            do Output.printString("Numbers are not sorted in ascending order");
+            do Output.println();
+            do Sys.error(1);
+         }
+         let i = i + 1;
+      }
+
+      do Output.printString("Numbers are sorted in ascending order");
+      do Output.println();
+
+      return;
+   }
+
+   function int binary_search(Array numbers, int length, int num_to_search) {
+      // Does the binary search.
+      // Returns found number's array index if found, or -1 if not found.
+      var int l;
+      var int r;
+      var int m;
+
+      let l = 0;
+      let r = length - 1;
+      while ((l < r) | (l = r)) {
+         let m = r - ((r - l) / 2);
+         if (numbers[m] = num_to_search) {
+            return m;
+         }
+         if (numbers[m] < num_to_search) {
+            let l = m + 1;
+         }
+         if (numbers[m] > num_to_search) {
+            let r = m - 1;
+         }
+      }
+
+      return -1;
+   }
+}
