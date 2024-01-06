@@ -115,9 +115,9 @@ mod tokenizer {
             match *self {
                 Token::Keyword { .. } => "keyword",
                 Token::Symbol { .. } => "symbol",
-                Token::IntegerConstant { .. } => "keyword",
+                Token::IntegerConstant { .. } => "integerConstant",
                 Token::StringConstant { .. } => "stringConstant",
-                Token::Identifier { .. } => "integerConstant",
+                Token::Identifier { .. } => "identifier",
             }
         }
     }
