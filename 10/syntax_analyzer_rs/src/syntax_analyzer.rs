@@ -2,6 +2,8 @@ use std::fs::read_to_string;
 use std::path::Path;
 
 mod tokenizer {
+    use std::str::Chars;
+
     enum Keyword {
         Class,
         Constructor,
@@ -122,12 +124,22 @@ mod tokenizer {
         }
     }
 
-    struct Tokenizer {
-        current_token: Token,
+    pub struct Tokenizer<'a> {
+        source: Chars<'a>, // Jack source code
+        current_token: Option<Token>, // current_token is None when Tokenizer
+                           // is created and when there are no
+                           // tokens remaining, otherwise it is Some
     }
 
-    impl Tokenizer {
-        fn advance(&mut self) {}
+    impl<'a> Tokenizer<'a> {
+        pub fn new(source: &'a str) -> Self {
+            Self {
+                source: source.chars(),
+                current_token: None,
+            }
+        }
+
+        pub fn advance(&mut self) {}
     }
 }
 
@@ -137,7 +149,15 @@ fn read_infile(infile: &Path) -> String {
 
 pub fn analyze_file(infile: &Path) -> Vec<String> {
     let source = read_infile(infile);
-    vec![]
+    let tokenizer = tokenizer::Tokenizer::new(&source);
+
+    let mut result = vec![];
+    result.push(String::from("<tokens>"));
+
+    // Logic goes here
+
+    result.push(String::from("</tokens>\n"));
+    result
 }
 
 #[cfg(test)]
