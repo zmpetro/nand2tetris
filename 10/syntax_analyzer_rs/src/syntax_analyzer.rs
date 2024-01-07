@@ -128,6 +128,12 @@ mod tokenizer {
         }
     }
 
+    // Used to return a Keyword or Identifier from a function
+    pub enum KeywordOrIdentifier {
+        Kw { keyword: Keyword },
+        Id { identifier: String },
+    }
+
     pub struct Tokenizer {
         pub source: Vec<u8>, // Jack source code
         pub index: usize,    // Position in source
@@ -184,7 +190,7 @@ mod tokenizer {
             }
         }
 
-        fn get_symbol(&mut self) -> Option<Symbol> {
+        fn get_symbol(&self) -> Option<Symbol> {
             let next_char = self.source[self.index];
             let matched_symbol = match next_char {
                 b'{' => Some(Symbol::LCurly),
@@ -211,82 +217,7 @@ mod tokenizer {
             matched_symbol
         }
 
-        fn get_keyword(&mut self) -> Option<Keyword> {
-            /*
-             * Keywords that must be followed by a space:
-             * class, constructor, function, method, field, static, var, int,
-             * char, boolean, void, let, do
-             *
-             * Keywords that can be following by a space or a symbol:
-             * true, false, null, this, if, else, while, return
-             */
-            let keyword_slice = &self.source[self.index..self.index + 12];
-            // 12 is the longest keyword `constructor` followed by a space
-            let matched_keyword = match keyword_slice {
-                kw if kw.starts_with(b"class ") => Some(Keyword::Class),
-                kw if kw.starts_with(b"constructor ") => Some(Keyword::Constructor),
-                kw if kw.starts_with(b"function ") => Some(Keyword::Function),
-                kw if kw.starts_with(b"method ") => Some(Keyword::Method),
-                kw if kw.starts_with(b"field ") => Some(Keyword::Field),
-                kw if kw.starts_with(b"static ") => Some(Keyword::Static),
-                kw if kw.starts_with(b"var ") => Some(Keyword::Var),
-                kw if kw.starts_with(b"int ") => Some(Keyword::Int),
-                kw if kw.starts_with(b"char ") => Some(Keyword::Char),
-                kw if kw.starts_with(b"boolean ") => Some(Keyword::Boolean),
-                kw if kw.starts_with(b"void ") => Some(Keyword::Void),
-                kw if kw.starts_with(b"let ") => Some(Keyword::Let),
-                kw if kw.starts_with(b"do ") => Some(Keyword::Do),
-                kw if kw.starts_with(b"true")
-                    && !kw[4].is_ascii_alphanumeric()
-                    && kw[4] != b'_' =>
-                {
-                    Some(Keyword::True)
-                }
-                kw if kw.starts_with(b"false")
-                    && !kw[5].is_ascii_alphanumeric()
-                    && kw[5] != b'_' =>
-                {
-                    Some(Keyword::False)
-                }
-                kw if kw.starts_with(b"null")
-                    && !kw[4].is_ascii_alphanumeric()
-                    && kw[4] != b'_' =>
-                {
-                    Some(Keyword::Null)
-                }
-                kw if kw.starts_with(b"this")
-                    && !kw[4].is_ascii_alphanumeric()
-                    && kw[4] != b'_' =>
-                {
-                    Some(Keyword::This)
-                }
-                kw if kw.starts_with(b"if") && !kw[2].is_ascii_alphanumeric() && kw[2] != b'_' => {
-                    Some(Keyword::If)
-                }
-                kw if kw.starts_with(b"else")
-                    && !kw[4].is_ascii_alphanumeric()
-                    && kw[4] != b'_' =>
-                {
-                    Some(Keyword::Else)
-                }
-                kw if kw.starts_with(b"while")
-                    && !kw[5].is_ascii_alphanumeric()
-                    && kw[5] != b'_' =>
-                {
-                    Some(Keyword::While)
-                }
-                kw if kw.starts_with(b"return")
-                    && !kw[6].is_ascii_alphanumeric()
-                    && kw[6] != b'_' =>
-                {
-                    Some(Keyword::Return)
-                }
-                _ => None,
-            };
-            matched_keyword
-        }
-
-        fn get_integer_constant(&mut self) -> Option<u16> {
+        fn get_integer_constant(&self) -> Option<u16> {
             let mut integer: Vec<u8> = vec![];
             let mut cur_index = self.index;
             while self.source[cur_index].is_ascii_digit() {
@@ -302,7 +233,7 @@ mod tokenizer {
             }
         }
 
-        fn get_string_constant(&mut self) -> Option<String> {
+        fn get_string_constant(&self) -> Option<String> {
             if self.source[self.index] != b'"' {
                 return None;
             }
@@ -316,14 +247,59 @@ mod tokenizer {
             Some(String::from_utf8(literal).unwrap())
         }
 
+        fn get_keyword(&self, kw_or_id: &str) -> Option<Keyword> {
+            let keyword = match kw_or_id {
+                "class" => Some(Keyword::Class),
+                "constructor" => Some(Keyword::Constructor),
+                "function" => Some(Keyword::Function),
+                "method" => Some(Keyword::Method),
+                "field" => Some(Keyword::Field),
+                "static" => Some(Keyword::Static),
+                "var" => Some(Keyword::Var),
+                "int" => Some(Keyword::Int),
+                "char" => Some(Keyword::Char),
+                "boolean" => Some(Keyword::Boolean),
+                "void" => Some(Keyword::Void),
+                "true" => Some(Keyword::True),
+                "false" => Some(Keyword::False),
+                "null" => Some(Keyword::Null),
+                "this" => Some(Keyword::This),
+                "let" => Some(Keyword::Let),
+                "do" => Some(Keyword::Do),
+                "if" => Some(Keyword::If),
+                "else" => Some(Keyword::Else),
+                "while" => Some(Keyword::While),
+                "return" => Some(Keyword::Return),
+                _ => None,
+            };
+            keyword
+        }
+
+        fn get_keyword_or_identifier(&self) -> Option<KeywordOrIdentifier> {
+            if !self.source[self.index].is_ascii_alphabetic() && self.source[self.index] != b'_' {
+                return None;
+            }
+            let mut kw_or_id: Vec<u8> = vec![];
+            let mut cur_index = self.index;
+            while self.source[cur_index].is_ascii_alphanumeric() || self.source[cur_index] == b'_' {
+                kw_or_id.push(self.source[cur_index]);
+                cur_index += 1;
+            }
+            let kw_or_id = String::from_utf8(kw_or_id).unwrap();
+            if let Some(keyword) = self.get_keyword(&kw_or_id) {
+                return Some(KeywordOrIdentifier::Kw { keyword: keyword });
+            } else {
+                return Some(KeywordOrIdentifier::Id {
+                    identifier: kw_or_id,
+                });
+            }
+        }
+
         pub fn advance(&mut self) {
             self.ignore_whitespace_and_comments();
             if let Some(symbol) = self.get_symbol() {
                 self.index += 1;
                 self.current_token = Some(Token::Symbol { symbol: symbol });
-            } else if let Some(keyword) = self.get_keyword() {
-                self.index += keyword.to_string().chars().count();
-                self.current_token = Some(Token::Keyword { keyword: keyword });
             } else if let Some(integer_constant) = self.get_integer_constant() {
                 self.index += integer_constant.to_string().len();
                 self.current_token = Some(Token::IntegerConstant {
@@ -334,6 +310,19 @@ mod tokenizer {
                 self.current_token = Some(Token::StringConstant {
                     literal: string_constant,
                 });
+            } else if let Some(kw_or_id) = self.get_keyword_or_identifier() {
+                match kw_or_id {
+                    KeywordOrIdentifier::Kw { keyword } => {
+                        self.index += keyword.to_string().chars().count();
+                        self.current_token = Some(Token::Keyword { keyword: keyword });
+                    }
+                    KeywordOrIdentifier::Id { identifier } => {
+                        self.index += identifier.len();
+                        self.current_token = Some(Token::Identifier {
+                            literal: identifier,
+                        });
+                    }
+                };
             }
         }
     }
