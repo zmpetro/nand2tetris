@@ -249,6 +249,7 @@ mod tokenizer {
             self.ignore_whitespace_and_comments();
             if let Some(symbol) = self.get_symbol() {
                 self.current_token = Some(symbol);
+                self.index += 1;
             }
         }
     }
