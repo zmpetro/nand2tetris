@@ -147,21 +147,35 @@ mod tokenizer {
             }
         }
 
-        fn ignore_multiline_comment(&mut self) {}
-
         fn ignore_singleline_comment(&mut self) {
             if &self.source[self.index..self.index + 2] == b"//" {
                 self.index += 2;
                 while &self.source[self.index..self.index + 1] != b"\n" {
                     self.index += 1;
                 }
-                self.index += 1;
+                self.ignore_whitespace();
+            }
+        }
+
+        fn ignore_multiline_comment(&mut self) {
+            if &self.source[self.index..self.index + 3] == b"/**" {
+                self.index += 3;
+                while &self.source[self.index..self.index + 2] != b"*/" {
+                    self.index += 1;
+                }
+                self.index += 2;
+                self.ignore_whitespace();
             }
         }
 
         pub fn advance(&mut self) {
             self.ignore_whitespace();
             self.ignore_singleline_comment();
+            self.ignore_singleline_comment();
+            self.ignore_singleline_comment();
+            self.ignore_singleline_comment();
+            self.ignore_singleline_comment();
+            self.ignore_multiline_comment();
         }
     }
 }
