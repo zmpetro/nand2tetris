@@ -4,7 +4,7 @@ use std::path::Path;
 mod tokenizer {
     use std::str::Chars;
 
-    enum Keyword {
+    pub enum Keyword {
         Class,
         Constructor,
         Function,
@@ -29,7 +29,7 @@ mod tokenizer {
     }
 
     impl Keyword {
-        fn to_string(&self) -> &str {
+        pub fn to_string(&self) -> &str {
             match *self {
                 Keyword::Class => "class",
                 Keyword::Constructor => "constructor",
@@ -113,13 +113,19 @@ mod tokenizer {
     }
 
     impl Token {
-        pub fn to_string(&self) -> &str {
-            match *self {
-                Token::Keyword { .. } => "keyword",
-                Token::Symbol { .. } => "symbol",
-                Token::IntegerConstant { .. } => "integerConstant",
-                Token::StringConstant { .. } => "stringConstant",
-                Token::Identifier { .. } => "identifier",
+        pub fn to_string(&self) -> String {
+            match self {
+                Token::Keyword { keyword } => {
+                    format!("<keyword> {} </keyword>", keyword.to_string())
+                }
+                Token::Symbol { symbol } => format!("<symbol> {} </symbol>", symbol.to_string()),
+                Token::IntegerConstant { value } => {
+                    format!("<integerConstant> {} </integerConstant>", value)
+                }
+                Token::StringConstant { literal } => {
+                    format!("<stringConstant> {} </stringConstant>", literal)
+                }
+                Token::Identifier { literal } => format!("<identifier> {} </identifier>", literal),
             }
         }
     }
@@ -180,76 +186,71 @@ mod tokenizer {
             }
         }
 
-        fn get_symbol(&mut self) -> Option<Token> {
+        fn get_symbol(&mut self) -> Option<Symbol> {
             let symbol_slice = &self.source[self.index..self.index + 1];
             let matched_symbol = match symbol_slice {
-                b"{" => Some(Token::Symbol {
-                    symbol: Symbol::LCurly,
-                }),
-                b"}" => Some(Token::Symbol {
-                    symbol: Symbol::RCurly,
-                }),
-                b"(" => Some(Token::Symbol {
-                    symbol: Symbol::LParen,
-                }),
-                b")" => Some(Token::Symbol {
-                    symbol: Symbol::RParen,
-                }),
-                b"[" => Some(Token::Symbol {
-                    symbol: Symbol::LBracket,
-                }),
-                b"]" => Some(Token::Symbol {
-                    symbol: Symbol::RBracket,
-                }),
-                b"." => Some(Token::Symbol {
-                    symbol: Symbol::Period,
-                }),
-                b"," => Some(Token::Symbol {
-                    symbol: Symbol::Comma,
-                }),
-                b";" => Some(Token::Symbol {
-                    symbol: Symbol::Semicolon,
-                }),
-                b"+" => Some(Token::Symbol {
-                    symbol: Symbol::Plus,
-                }),
-                b"-" => Some(Token::Symbol {
-                    symbol: Symbol::Minus,
-                }),
-                b"*" => Some(Token::Symbol {
-                    symbol: Symbol::Asterisk,
-                }),
-                b"/" => Some(Token::Symbol {
-                    symbol: Symbol::Slash,
-                }),
-                b"&" => Some(Token::Symbol {
-                    symbol: Symbol::Ampersand,
-                }),
-                b"|" => Some(Token::Symbol {
-                    symbol: Symbol::Pipe,
-                }),
-                b"<" => Some(Token::Symbol {
-                    symbol: Symbol::LessThan,
-                }),
-                b">" => Some(Token::Symbol {
-                    symbol: Symbol::GreaterThan,
-                }),
-                b"=" => Some(Token::Symbol {
-                    symbol: Symbol::Equals,
-                }),
-                b"~" => Some(Token::Symbol {
-                    symbol: Symbol::Tilde,
-                }),
+                b"{" => Some(Symbol::LCurly),
+                b"}" => Some(Symbol::RCurly),
+                b"(" => Some(Symbol::LParen),
+                b")" => Some(Symbol::RParen),
+                b"[" => Some(Symbol::LBracket),
+                b"]" => Some(Symbol::RBracket),
+                b"." => Some(Symbol::Period),
+                b"," => Some(Symbol::Comma),
+                b";" => Some(Symbol::Semicolon),
+                b"+" => Some(Symbol::Plus),
+                b"-" => Some(Symbol::Minus),
+                b"*" => Some(Symbol::Asterisk),
+                b"/" => Some(Symbol::Slash),
+                b"&" => Some(Symbol::Ampersand),
+                b"|" => Some(Symbol::Pipe),
+                b"<" => Some(Symbol::LessThan),
+                b">" => Some(Symbol::GreaterThan),
+                b"=" => Some(Symbol::Equals),
+                b"~" => Some(Symbol::Tilde),
                 _ => None,
             };
             matched_symbol
         }
 
+        fn get_keyword(&mut self) -> Option<Keyword> {
+            /*
+             * Keywords that must be followed by a space:
+             * class, constructor, function, method, field, static, var, int,
+             * char, boolean, void, let, do
+             *
+             * Keywords that can be following by a space or a symbol:
+             * true, false, null, this, if, else, while, return
+             */
+            let keyword_slice = &self.source[self.index..self.index + 12];
+            // 12 is the longest keyword `constructor` followed by a space
+            let matched_keyword = match keyword_slice {
+                kw if kw.starts_with(b"class ") => Some(Keyword::Class),
+                kw if kw.starts_with(b"constructor ") => Some(Keyword::Constructor),
+                kw if kw.starts_with(b"function ") => Some(Keyword::Function),
+                kw if kw.starts_with(b"method ") => Some(Keyword::Method),
+                kw if kw.starts_with(b"field ") => Some(Keyword::Field),
+                kw if kw.starts_with(b"static ") => Some(Keyword::Static),
+                kw if kw.starts_with(b"var ") => Some(Keyword::Var),
+                kw if kw.starts_with(b"int ") => Some(Keyword::Int),
+                kw if kw.starts_with(b"char ") => Some(Keyword::Char),
+                kw if kw.starts_with(b"boolean ") => Some(Keyword::Boolean),
+                kw if kw.starts_with(b"void ") => Some(Keyword::Void),
+                kw if kw.starts_with(b"let ") => Some(Keyword::Let),
+                kw if kw.starts_with(b"do ") => Some(Keyword::Do),
+                _ => None,
+            };
+            matched_keyword
+        }
+
         pub fn advance(&mut self) {
             self.ignore_whitespace_and_comments();
             if let Some(symbol) = self.get_symbol() {
-                self.current_token = Some(symbol);
                 self.index += 1;
+                self.current_token = Some(Token::Symbol { symbol: symbol });
+            } else if let Some(keyword) = self.get_keyword() {
+                self.index += keyword.to_string().chars().count();
+                self.current_token = Some(Token::Keyword { keyword: keyword });
             }
         }
     }
@@ -265,19 +266,10 @@ pub fn analyze_file(infile: &Path) -> Vec<String> {
 
     let mut result = vec![];
     result.push(String::from("<tokens>"));
-    println!(
-        "index: {}  char: {}",
-        tokenizer.index, tokenizer.source[tokenizer.index] as char
-    );
     tokenizer.advance();
-    println!(
-        "index: {}  char: {}",
-        tokenizer.index, tokenizer.source[tokenizer.index] as char
-    );
-    println!(
-        "current token: {}",
-        tokenizer.current_token.unwrap().to_string()
-    );
+    result.push(tokenizer.current_token.as_ref().unwrap().to_string());
+    tokenizer.advance();
+    result.push(tokenizer.current_token.as_ref().unwrap().to_string());
     result.push(String::from("</tokens>\n"));
     result
 }
