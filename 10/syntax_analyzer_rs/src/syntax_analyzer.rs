@@ -104,7 +104,7 @@ mod tokenizer {
         }
     }
 
-    enum Token {
+    pub enum Token {
         Keyword { keyword: Keyword },
         Symbol { symbol: Symbol },
         IntegerConstant { value: u16 },
@@ -113,7 +113,7 @@ mod tokenizer {
     }
 
     impl Token {
-        fn to_string(&self) -> &str {
+        pub fn to_string(&self) -> &str {
             match *self {
                 Token::Keyword { .. } => "keyword",
                 Token::Symbol { .. } => "symbol",
@@ -180,8 +180,76 @@ mod tokenizer {
             }
         }
 
+        fn get_symbol(&mut self) -> Option<Token> {
+            let symbol_slice = &self.source[self.index..self.index + 1];
+            let matched_symbol = match symbol_slice {
+                b"{" => Some(Token::Symbol {
+                    symbol: Symbol::LCurly,
+                }),
+                b"}" => Some(Token::Symbol {
+                    symbol: Symbol::RCurly,
+                }),
+                b"(" => Some(Token::Symbol {
+                    symbol: Symbol::LParen,
+                }),
+                b")" => Some(Token::Symbol {
+                    symbol: Symbol::RParen,
+                }),
+                b"[" => Some(Token::Symbol {
+                    symbol: Symbol::LBracket,
+                }),
+                b"]" => Some(Token::Symbol {
+                    symbol: Symbol::RBracket,
+                }),
+                b"." => Some(Token::Symbol {
+                    symbol: Symbol::Period,
+                }),
+                b"," => Some(Token::Symbol {
+                    symbol: Symbol::Comma,
+                }),
+                b";" => Some(Token::Symbol {
+                    symbol: Symbol::Semicolon,
+                }),
+                b"+" => Some(Token::Symbol {
+                    symbol: Symbol::Plus,
+                }),
+                b"-" => Some(Token::Symbol {
+                    symbol: Symbol::Minus,
+                }),
+                b"*" => Some(Token::Symbol {
+                    symbol: Symbol::Asterisk,
+                }),
+                b"/" => Some(Token::Symbol {
+                    symbol: Symbol::Slash,
+                }),
+                b"&" => Some(Token::Symbol {
+                    symbol: Symbol::Ampersand,
+                }),
+                b"|" => Some(Token::Symbol {
+                    symbol: Symbol::Pipe,
+                }),
+                b"<" => Some(Token::Symbol {
+                    symbol: Symbol::LessThan,
+                }),
+                b">" => Some(Token::Symbol {
+                    symbol: Symbol::GreaterThan,
+                }),
+                b"=" => Some(Token::Symbol {
+                    symbol: Symbol::Equals,
+                }),
+                b"~" => Some(Token::Symbol {
+                    symbol: Symbol::Tilde,
+                }),
+                _ => None,
+            };
+            matched_symbol
+        }
+
         pub fn advance(&mut self) {
             self.ignore_whitespace_and_comments();
+            if let Some(symbol) = self.get_symbol() {
+                self.current_token = Some(symbol);
+            }
         }
     }
 }
@@ -204,6 +272,10 @@ pub fn analyze_file(infile: &Path) -> Vec<String> {
     println!(
         "index: {}  char: {}",
         tokenizer.index, tokenizer.source[tokenizer.index] as char
+    );
+    println!(
+        "current token: {}",
+        tokenizer.current_token.unwrap().to_string()
     );
     result.push(String::from("</tokens>\n"));
     result
