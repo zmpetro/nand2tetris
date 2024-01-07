@@ -124,22 +124,32 @@ mod tokenizer {
         }
     }
 
-    pub struct Tokenizer<'a> {
-        source: Chars<'a>, // Jack source code
-        current_token: Option<Token>, // current_token is None when Tokenizer
-                           // is created and when there are no
-                           // tokens remaining, otherwise it is Some
+    pub struct Tokenizer {
+        pub source: Vec<u8>, // Jack source code
+        pub index: usize,    // Position in source
+        pub current_token: Option<Token>, // current_token is None when Tokenizer
+                             // is created and when there are no
+                             // tokens remaining, otherwise it is Some
     }
 
-    impl<'a> Tokenizer<'a> {
-        pub fn new(source: &'a str) -> Self {
+    impl Tokenizer {
+        pub fn new(source: Vec<u8>) -> Self {
             Self {
-                source: source.chars(),
+                source: source,
+                index: 0,
                 current_token: None,
             }
         }
 
-        pub fn advance(&mut self) {}
+        fn eat_whitespace(&mut self) {
+            while self.source[self.index].is_ascii_whitespace() {
+                self.index += 1;
+            }
+        }
+
+        pub fn advance(&mut self) {
+            self.eat_whitespace();
+        }
     }
 }
 
@@ -148,14 +158,20 @@ fn read_infile(infile: &Path) -> String {
 }
 
 pub fn analyze_file(infile: &Path) -> Vec<String> {
-    let source = read_infile(infile);
-    let tokenizer = tokenizer::Tokenizer::new(&source);
+    let source = read_infile(infile).into_bytes();
+    let mut tokenizer = tokenizer::Tokenizer::new(source);
 
     let mut result = vec![];
     result.push(String::from("<tokens>"));
-
-    // Logic goes here
-
+    println!(
+        "index: {}  char: {}",
+        tokenizer.index, tokenizer.source[tokenizer.index] as char
+    );
+    tokenizer.advance();
+    println!(
+        "index: {}  char: {}",
+        tokenizer.index, tokenizer.source[tokenizer.index] as char
+    );
     result.push(String::from("</tokens>\n"));
     result
 }
