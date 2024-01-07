@@ -2,8 +2,6 @@ use std::fs::read_to_string;
 use std::path::Path;
 
 mod tokenizer {
-    use std::str::Chars;
-
     pub enum Keyword {
         Class,
         Constructor,
@@ -156,7 +154,7 @@ mod tokenizer {
         fn ignore_singleline_comment(&mut self) {
             if &self.source[self.index..self.index + 2] == b"//" {
                 self.index += 2;
-                while &self.source[self.index..self.index + 1] != b"\n" {
+                while self.source[self.index] != b'\n' {
                     self.index += 1;
                 }
                 self.ignore_whitespace();
@@ -187,27 +185,27 @@ mod tokenizer {
         }
 
         fn get_symbol(&mut self) -> Option<Symbol> {
-            let symbol_slice = &self.source[self.index..self.index + 1];
-            let matched_symbol = match symbol_slice {
-                b"{" => Some(Symbol::LCurly),
-                b"}" => Some(Symbol::RCurly),
-                b"(" => Some(Symbol::LParen),
-                b")" => Some(Symbol::RParen),
-                b"[" => Some(Symbol::LBracket),
-                b"]" => Some(Symbol::RBracket),
-                b"." => Some(Symbol::Period),
-                b"," => Some(Symbol::Comma),
-                b";" => Some(Symbol::Semicolon),
-                b"+" => Some(Symbol::Plus),
-                b"-" => Some(Symbol::Minus),
-                b"*" => Some(Symbol::Asterisk),
-                b"/" => Some(Symbol::Slash),
-                b"&" => Some(Symbol::Ampersand),
-                b"|" => Some(Symbol::Pipe),
-                b"<" => Some(Symbol::LessThan),
-                b">" => Some(Symbol::GreaterThan),
-                b"=" => Some(Symbol::Equals),
-                b"~" => Some(Symbol::Tilde),
+            let next_char = self.source[self.index];
+            let matched_symbol = match next_char {
+                b'{' => Some(Symbol::LCurly),
+                b'}' => Some(Symbol::RCurly),
+                b'(' => Some(Symbol::LParen),
+                b')' => Some(Symbol::RParen),
+                b'[' => Some(Symbol::LBracket),
+                b']' => Some(Symbol::RBracket),
+                b'.' => Some(Symbol::Period),
+                b',' => Some(Symbol::Comma),
+                b';' => Some(Symbol::Semicolon),
+                b'+' => Some(Symbol::Plus),
+                b'-' => Some(Symbol::Minus),
+                b'*' => Some(Symbol::Asterisk),
+                b'/' => Some(Symbol::Slash),
+                b'&' => Some(Symbol::Ampersand),
+                b'|' => Some(Symbol::Pipe),
+                b'<' => Some(Symbol::LessThan),
+                b'>' => Some(Symbol::GreaterThan),
+                b'=' => Some(Symbol::Equals),
+                b'~' => Some(Symbol::Tilde),
                 _ => None,
             };
             matched_symbol
@@ -238,6 +236,51 @@ mod tokenizer {
                 kw if kw.starts_with(b"void ") => Some(Keyword::Void),
                 kw if kw.starts_with(b"let ") => Some(Keyword::Let),
                 kw if kw.starts_with(b"do ") => Some(Keyword::Do),
+                kw if kw.starts_with(b"true")
+                    && !kw[4].is_ascii_alphanumeric()
+                    && kw[4] != b'_' =>
+                {
+                    Some(Keyword::True)
+                }
+                kw if kw.starts_with(b"false")
+                    && !kw[5].is_ascii_alphanumeric()
+                    && kw[5] != b'_' =>
+                {
+                    Some(Keyword::False)
+                }
+                kw if kw.starts_with(b"null")
+                    && !kw[4].is_ascii_alphanumeric()
+                    && kw[4] != b'_' =>
+                {
+                    Some(Keyword::Null)
+                }
+                kw if kw.starts_with(b"this")
+                    && !kw[4].is_ascii_alphanumeric()
+                    && kw[4] != b'_' =>
+                {
+                    Some(Keyword::This)
+                }
+                kw if kw.starts_with(b"if") && !kw[2].is_ascii_alphanumeric() && kw[2] != b'_' => {
+                    Some(Keyword::If)
+                }
+                kw if kw.starts_with(b"else")
+                    && !kw[4].is_ascii_alphanumeric()
+                    && kw[4] != b'_' =>
+                {
+                    Some(Keyword::Else)
+                }
+                kw if kw.starts_with(b"while")
+                    && !kw[5].is_ascii_alphanumeric()
+                    && kw[5] != b'_' =>
+                {
+                    Some(Keyword::While)
+                }
+                kw if kw.starts_with(b"return")
+                    && !kw[6].is_ascii_alphanumeric()
+                    && kw[6] != b'_' =>
+                {
+                    Some(Keyword::Return)
+                }
                 _ => None,
             };
             matched_keyword
