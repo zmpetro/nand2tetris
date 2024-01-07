@@ -286,6 +286,22 @@ mod tokenizer {
             matched_keyword
         }
 
+        fn get_integer_constant(&mut self) -> Option<u16> {
+            let mut integer: Vec<u8> = vec![];
+            let mut cur_index = self.index;
+            while self.source[cur_index].is_ascii_digit() {
+                integer.push(self.source[cur_index]);
+                cur_index += 1;
+            }
+            if integer.is_empty() {
+                return None;
+            } else {
+                let integer_str = String::from_utf8(integer).unwrap();
+                let parsed_integer: Result<u16, _> = integer_str.parse();
+                return Some(parsed_integer.unwrap());
+            }
+        }
+
         pub fn advance(&mut self) {
             self.ignore_whitespace_and_comments();
             if let Some(symbol) = self.get_symbol() {
@@ -294,6 +310,11 @@ mod tokenizer {
             } else if let Some(keyword) = self.get_keyword() {
                 self.index += keyword.to_string().chars().count();
                 self.current_token = Some(Token::Keyword { keyword: keyword });
+            } else if let Some(integer_constant) = self.get_integer_constant() {
+                self.index += integer_constant.to_string().len();
+                self.current_token = Some(Token::IntegerConstant {
+                    value: integer_constant,
+                });
             }
         }
     }
