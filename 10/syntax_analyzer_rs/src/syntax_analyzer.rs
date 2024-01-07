@@ -168,14 +168,20 @@ mod tokenizer {
             }
         }
 
+        fn ignore_whitespace_and_comments(&mut self) {
+            loop {
+                let starting_index = self.index;
+                self.ignore_whitespace();
+                self.ignore_singleline_comment();
+                self.ignore_multiline_comment();
+                if self.index == starting_index {
+                    break;
+                }
+            }
+        }
+
         pub fn advance(&mut self) {
-            self.ignore_whitespace();
-            self.ignore_singleline_comment();
-            self.ignore_singleline_comment();
-            self.ignore_singleline_comment();
-            self.ignore_singleline_comment();
-            self.ignore_singleline_comment();
-            self.ignore_multiline_comment();
+            self.ignore_whitespace_and_comments();
         }
     }
 }
