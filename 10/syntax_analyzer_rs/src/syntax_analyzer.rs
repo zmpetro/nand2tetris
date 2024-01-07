@@ -54,7 +54,7 @@ mod tokenizer {
         }
     }
 
-    enum Symbol {
+    pub enum Symbol {
         LCurly,
         RCurly,
         LParen,
@@ -302,6 +302,20 @@ mod tokenizer {
             }
         }
 
+        fn get_string_constant(&mut self) -> Option<String> {
+            if self.source[self.index] != b'"' {
+                return None;
+            }
+            let mut literal: Vec<u8> = vec![];
+            let mut cur_index = self.index;
+            cur_index += 1; // Advance past initial double quote
+            while self.source[cur_index] != b'"' {
+                literal.push(self.source[cur_index]);
+                cur_index += 1;
+            }
+            Some(String::from_utf8(literal).unwrap())
+        }
+
         pub fn advance(&mut self) {
             self.ignore_whitespace_and_comments();
             if let Some(symbol) = self.get_symbol() {
@@ -314,6 +328,11 @@ mod tokenizer {
                 self.index += integer_constant.to_string().len();
                 self.current_token = Some(Token::IntegerConstant {
                     value: integer_constant,
+                });
+            } else if let Some(string_constant) = self.get_string_constant() {
+                self.index += string_constant.len() + 2; // Add 2 for quote symbols
+                self.current_token = Some(Token::StringConstant {
+                    literal: string_constant,
                 });
             }
         }
