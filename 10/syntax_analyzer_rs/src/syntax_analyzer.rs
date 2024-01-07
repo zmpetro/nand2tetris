@@ -141,14 +141,27 @@ mod tokenizer {
             }
         }
 
-        fn eat_whitespace(&mut self) {
+        fn ignore_whitespace(&mut self) {
             while self.source[self.index].is_ascii_whitespace() {
                 self.index += 1;
             }
         }
 
+        fn ignore_multiline_comment(&mut self) {}
+
+        fn ignore_singleline_comment(&mut self) {
+            if &self.source[self.index..self.index + 2] == b"//" {
+                self.index += 2;
+                while &self.source[self.index..self.index + 1] != b"\n" {
+                    self.index += 1;
+                }
+                self.index += 1;
+            }
+        }
+
         pub fn advance(&mut self) {
-            self.eat_whitespace();
+            self.ignore_whitespace();
+            self.ignore_singleline_comment();
         }
     }
 }
