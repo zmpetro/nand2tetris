@@ -152,29 +152,45 @@ mod tokenizer {
         }
 
         fn ignore_whitespace(&mut self) {
-            while self.source[self.index].is_ascii_whitespace() {
-                self.index += 1;
+            while let Some(&char) = self.source.get(self.index) {
+                if char.is_ascii_whitespace() {
+                    self.index += 1;
+                } else {
+                    break;
+                }
             }
         }
 
         fn ignore_singleline_comment(&mut self) {
-            if &self.source[self.index..self.index + 2] == b"//" {
-                self.index += 2;
-                while self.source[self.index] != b'\n' {
-                    self.index += 1;
+            if let Some(slice) = self.source.get(self.index..self.index + 2) {
+                if slice == b"//" {
+                    self.index += 2;
+                    while let Some(&char) = self.source.get(self.index) {
+                        if char != b'\n' {
+                            self.index += 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    self.ignore_whitespace();
                 }
-                self.ignore_whitespace();
             }
         }
 
         fn ignore_multiline_comment(&mut self) {
-            if &self.source[self.index..self.index + 3] == b"/**" {
-                self.index += 3;
-                while &self.source[self.index..self.index + 2] != b"*/" {
-                    self.index += 1;
+            if let Some(start_slice) = self.source.get(self.index..self.index + 3) {
+                if start_slice == b"/**" {
+                    self.index += 3;
+                    while let Some(end_slice) = self.source.get(self.index..self.index + 2) {
+                        if end_slice != b"*/" {
+                            self.index += 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    self.index += 2;
+                    self.ignore_whitespace();
                 }
-                self.index += 2;
-                self.ignore_whitespace();
             }
         }
 
@@ -191,38 +207,45 @@ mod tokenizer {
         }
 
         fn get_symbol(&self) -> Option<Symbol> {
-            let next_char = self.source[self.index];
-            let matched_symbol = match next_char {
-                b'{' => Some(Symbol::LCurly),
-                b'}' => Some(Symbol::RCurly),
-                b'(' => Some(Symbol::LParen),
-                b')' => Some(Symbol::RParen),
-                b'[' => Some(Symbol::LBracket),
-                b']' => Some(Symbol::RBracket),
-                b'.' => Some(Symbol::Period),
-                b',' => Some(Symbol::Comma),
-                b';' => Some(Symbol::Semicolon),
-                b'+' => Some(Symbol::Plus),
-                b'-' => Some(Symbol::Minus),
-                b'*' => Some(Symbol::Asterisk),
-                b'/' => Some(Symbol::Slash),
-                b'&' => Some(Symbol::Ampersand),
-                b'|' => Some(Symbol::Pipe),
-                b'<' => Some(Symbol::LessThan),
-                b'>' => Some(Symbol::GreaterThan),
-                b'=' => Some(Symbol::Equals),
-                b'~' => Some(Symbol::Tilde),
-                _ => None,
-            };
-            matched_symbol
+            if let Some(&char) = self.source.get(self.index) {
+                let matched_symbol = match char {
+                    b'{' => Some(Symbol::LCurly),
+                    b'}' => Some(Symbol::RCurly),
+                    b'(' => Some(Symbol::LParen),
+                    b')' => Some(Symbol::RParen),
+                    b'[' => Some(Symbol::LBracket),
+                    b']' => Some(Symbol::RBracket),
+                    b'.' => Some(Symbol::Period),
+                    b',' => Some(Symbol::Comma),
+                    b';' => Some(Symbol::Semicolon),
+                    b'+' => Some(Symbol::Plus),
+                    b'-' => Some(Symbol::Minus),
+                    b'*' => Some(Symbol::Asterisk),
+                    b'/' => Some(Symbol::Slash),
+                    b'&' => Some(Symbol::Ampersand),
+                    b'|' => Some(Symbol::Pipe),
+                    b'<' => Some(Symbol::LessThan),
+                    b'>' => Some(Symbol::GreaterThan),
+                    b'=' => Some(Symbol::Equals),
+                    b'~' => Some(Symbol::Tilde),
+                    _ => None,
+                };
+                return matched_symbol;
+            } else {
+                return None;
+            }
         }
 
         fn get_integer_constant(&self) -> Option<u16> {
             let mut integer: Vec<u8> = vec![];
             let mut cur_index = self.index;
-            while self.source[cur_index].is_ascii_digit() {
-                integer.push(self.source[cur_index]);
-                cur_index += 1;
+            while let Some(&char) = self.source.get(cur_index) {
+                if char.is_ascii_digit() {
+                    integer.push(char);
+                    cur_index += 1;
+                } else {
+                    break;
+                }
             }
             if integer.is_empty() {
                 return None;
@@ -234,15 +257,23 @@ mod tokenizer {
         }
 
         fn get_string_constant(&self) -> Option<String> {
-            if self.source[self.index] != b'"' {
+            if let Some(&char) = self.source.get(self.index) {
+                if char != b'"' {
+                    return None;
+                }
+            } else {
                 return None;
             }
             let mut literal: Vec<u8> = vec![];
             let mut cur_index = self.index;
             cur_index += 1; // Advance past initial double quote
-            while self.source[cur_index] != b'"' {
-                literal.push(self.source[cur_index]);
-                cur_index += 1;
+            while let Some(&char) = self.source.get(cur_index) {
+                if char != b'"' {
+                    literal.push(char);
+                    cur_index += 1;
+                } else {
+                    break;
+                }
             }
             Some(String::from_utf8(literal).unwrap())
         }
@@ -276,14 +307,22 @@ mod tokenizer {
         }
 
         fn get_keyword_or_identifier(&self) -> Option<KeywordOrIdentifier> {
-            if !self.source[self.index].is_ascii_alphabetic() && self.source[self.index] != b'_' {
+            if let Some(&char) = self.source.get(self.index) {
+                if !char.is_ascii_alphabetic() && char != b'_' {
+                    return None;
+                }
+            } else {
                 return None;
             }
             let mut kw_or_id: Vec<u8> = vec![];
             let mut cur_index = self.index;
-            while self.source[cur_index].is_ascii_alphanumeric() || self.source[cur_index] == b'_' {
-                kw_or_id.push(self.source[cur_index]);
-                cur_index += 1;
+            while let Some(&char) = self.source.get(cur_index) {
+                if char.is_ascii_alphanumeric() || char == b'_' {
+                    kw_or_id.push(char);
+                    cur_index += 1;
+                } else {
+                    break;
+                }
             }
             let kw_or_id = String::from_utf8(kw_or_id).unwrap();
             if let Some(keyword) = self.get_keyword(&kw_or_id) {
@@ -323,6 +362,8 @@ mod tokenizer {
                         });
                     }
                 };
+            } else {
+                self.current_token = None;
             }
         }
     }
@@ -335,13 +376,15 @@ fn read_infile(infile: &Path) -> String {
 pub fn analyze_file(infile: &Path) -> Vec<String> {
     let source = read_infile(infile).into_bytes();
     let mut tokenizer = tokenizer::Tokenizer::new(source);
-
     let mut result = vec![];
     result.push(String::from("<tokens>"));
-    tokenizer.advance();
-    result.push(tokenizer.current_token.as_ref().unwrap().to_string());
-    tokenizer.advance();
-    result.push(tokenizer.current_token.as_ref().unwrap().to_string());
+    loop {
+        tokenizer.advance();
+        if tokenizer.current_token.is_none() {
+            break;
+        }
+        result.push(tokenizer.current_token.as_ref().unwrap().to_string());
+    }
     result.push(String::from("</tokens>\n"));
     result
 }
