@@ -388,13 +388,3 @@ pub fn analyze_file(infile: &Path) -> Vec<String> {
     result.push(String::from("</tokens>\n"));
     result
 }
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_nothing() {
-        let x = 5;
-        let y = 5;
-        assert_eq!(x, y);
-    }
-}
