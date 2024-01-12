@@ -195,6 +195,7 @@ impl CompilationEngine {
         self.eat_keyword_or_symbol(vec![Token::Symbol {
             symbol: Symbol::RParen,
         }])?;
+        self.compile_subroutine_body()?;
 
         self.add_xml_event("-subroutineDec");
         Ok(())
@@ -219,12 +220,54 @@ impl CompilationEngine {
         Ok(())
     }
 
-    fn compile_subroutine_body(&self) {
+    fn compile_subroutine_body(&mut self) -> Result<(), String> {
         // Compiles a subroutine's body.
+        self.add_xml_event("+subroutineBody");
+
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::LCurly,
+        }])?;
+        self.compile_all_var_dec()?;
+        // self.eat_keyword_or_symbol(vec![Token::Symbol {
+        //     symbol: Symbol::RCurly,
+        // }])?;
+
+        self.add_xml_event("-subroutineBody");
+        Ok(())
     }
 
-    fn compile_var_dec(&self) {
+    fn compile_var_dec(&mut self) -> Result<(), String> {
         // Compiles a `var` declaration.
+        self.add_xml_event("+varDec");
+
+        self.eat_keyword_or_symbol(vec![Token::Keyword {
+            keyword: Keyword::Var,
+        }])?;
+        self.eat_type()?;
+        self.eat_identifier()?;
+        while let Ok(()) = self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::Comma,
+        }]) {
+            self.eat_identifier()?;
+        }
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::Semicolon,
+        }])?;
+
+        self.add_xml_event("-varDec");
+        Ok(())
+    }
+
+    fn compile_all_var_dec(&mut self) -> Result<(), String> {
+        // Compiles all var declarations in a loop.
+        while self.tokenizer.current_token.as_ref().unwrap()
+            == &(Token::Keyword {
+                keyword: Keyword::Var,
+            })
+        {
+            self.compile_var_dec()?;
+        }
+        Ok(())
     }
 
     fn compile_statements(&self) {
