@@ -275,6 +275,22 @@ impl CompilationEngine {
         // Compiles a sequence of statments. Does not handle the enclosing "{}".
         self.add_xml_event("+statements");
 
+        let mut statements_left = true;
+        while statements_left {
+            let current_token = self.tokenizer.current_token.as_ref().unwrap();
+            match current_token {
+                Token::Keyword { keyword } => match keyword {
+                    Keyword::Let => self.compile_let()?,
+                    // Keyword::If => self.compile_if()?,
+                    // Keyword::While => self.compile_while()?,
+                    // Keyword::Do => self.compile_do()?,
+                    // Keyword::Return => self.compile_return()?,
+                    _ => statements_left = false,
+                },
+                _ => statements_left = false,
+            }
+        }
+
         self.add_xml_event("-statements");
         Ok(())
     }
@@ -291,6 +307,9 @@ impl CompilationEngine {
             symbol: Symbol::Equals,
         }])?;
         self.compile_expression()?;
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::Semicolon,
+        }])?;
 
         self.add_xml_event("-letStatement");
         Ok(())
@@ -300,6 +319,10 @@ impl CompilationEngine {
         // Compiles an if statement, possibly with a trailing `else` clause.
         self.add_xml_event("+ifStatement");
 
+        self.eat_keyword_or_symbol(vec![Token::Keyword {
+            keyword: Keyword::If,
+        }])?;
+
         self.add_xml_event("-ifStatement");
         Ok(())
     }
@@ -307,6 +330,10 @@ impl CompilationEngine {
     fn compile_while(&mut self) -> Result<(), String> {
         // Compiles a while statement.
         self.add_xml_event("+whileStatement");
+
+        self.eat_keyword_or_symbol(vec![Token::Keyword {
+            keyword: Keyword::While,
+        }])?;
 
         self.add_xml_event("-whileStatement");
         Ok(())
@@ -316,6 +343,10 @@ impl CompilationEngine {
         // Compiles a do statement.
         self.add_xml_event("+doStatement");
 
+        self.eat_keyword_or_symbol(vec![Token::Keyword {
+            keyword: Keyword::Do,
+        }])?;
+
         self.add_xml_event("-doStatement");
         Ok(())
     }
@@ -324,6 +355,10 @@ impl CompilationEngine {
         // Compiles a return statement.
         self.add_xml_event("+returnStatement");
 
+        self.eat_keyword_or_symbol(vec![Token::Keyword {
+            keyword: Keyword::Return,
+        }])?;
+
         self.add_xml_event("-returnStatement");
         Ok(())
     }
@@ -331,6 +366,8 @@ impl CompilationEngine {
     fn compile_expression(&mut self) -> Result<(), String> {
         // Compiles an expression.
         self.add_xml_event("+expression");
+
+        self.compile_term()?;
 
         self.add_xml_event("-expression");
         Ok(())
@@ -346,6 +383,8 @@ impl CompilationEngine {
          * not be advanced over.
          */
         self.add_xml_event("+term");
+
+        self.eat_identifier()?;
 
         self.add_xml_event("-term");
         Ok(())
