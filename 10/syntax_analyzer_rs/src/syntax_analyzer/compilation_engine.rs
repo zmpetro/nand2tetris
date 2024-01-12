@@ -92,9 +92,13 @@ impl CompilationEngine {
             symbol: Symbol::LCurly,
         }])?;
         self.compile_all_class_var_dec()?;
-        self.compile_subroutine_dec()?;
+        self.compile_all_subroutine_dec()?;
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::RCurly,
+        }])?;
 
         self.add_xml_event("-class");
+        self.add_xml_event("\n");
         Ok(())
     }
 
@@ -201,6 +205,25 @@ impl CompilationEngine {
         Ok(())
     }
 
+    fn compile_all_subroutine_dec(&mut self) -> Result<(), String> {
+        // Compiles all subroutine declarations in a loop.
+        let subroutine_decs = vec![
+            Token::Keyword {
+                keyword: Keyword::Constructor,
+            },
+            Token::Keyword {
+                keyword: Keyword::Function,
+            },
+            Token::Keyword {
+                keyword: Keyword::Method,
+            },
+        ];
+        while subroutine_decs.contains(self.tokenizer.current_token.as_ref().unwrap()) {
+            self.compile_subroutine_dec()?;
+        }
+        Ok(())
+    }
+
     fn compile_parameter_list(&mut self) -> Result<(), String> {
         // Compiles a (possibly empty) parameter list. Does not handle the enclosing "()".
         self.add_xml_event("+parameterList");
@@ -229,9 +252,9 @@ impl CompilationEngine {
         }])?;
         self.compile_all_var_dec()?;
         self.compile_statements()?;
-        // self.eat_keyword_or_symbol(vec![Token::Symbol {
-        //     symbol: Symbol::RCurly,
-        // }])?;
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::RCurly,
+        }])?;
 
         self.add_xml_event("-subroutineBody");
         Ok(())
@@ -281,10 +304,10 @@ impl CompilationEngine {
             match current_token {
                 Token::Keyword { keyword } => match keyword {
                     Keyword::Let => self.compile_let()?,
-                    // Keyword::If => self.compile_if()?,
-                    // Keyword::While => self.compile_while()?,
-                    // Keyword::Do => self.compile_do()?,
-                    // Keyword::Return => self.compile_return()?,
+                    Keyword::If => self.compile_if()?,
+                    Keyword::While => self.compile_while()?,
+                    Keyword::Do => self.compile_do()?,
+                    Keyword::Return => self.compile_return()?,
                     _ => statements_left = false,
                 },
                 _ => statements_left = false,
@@ -303,9 +326,21 @@ impl CompilationEngine {
             keyword: Keyword::Let,
         }])?;
         self.eat_identifier()?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
+        let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
             symbol: Symbol::Equals,
-        }])?;
+        }]);
+        if res.is_err() {
+            self.eat_keyword_or_symbol(vec![Token::Symbol {
+                symbol: Symbol::LBracket,
+            }])?;
+            self.compile_expression()?;
+            self.eat_keyword_or_symbol(vec![Token::Symbol {
+                symbol: Symbol::RBracket,
+            }])?;
+            self.eat_keyword_or_symbol(vec![Token::Symbol {
+                symbol: Symbol::Equals,
+            }])?;
+        }
         self.compile_expression()?;
         self.eat_keyword_or_symbol(vec![Token::Symbol {
             symbol: Symbol::Semicolon,
@@ -322,6 +357,32 @@ impl CompilationEngine {
         self.eat_keyword_or_symbol(vec![Token::Keyword {
             keyword: Keyword::If,
         }])?;
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::LParen,
+        }])?;
+        self.compile_expression()?;
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::RParen,
+        }])?;
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::LCurly,
+        }])?;
+        self.compile_statements()?;
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::RCurly,
+        }])?;
+        let res = self.eat_keyword_or_symbol(vec![Token::Keyword {
+            keyword: Keyword::Else,
+        }]);
+        if res.is_ok() {
+            self.eat_keyword_or_symbol(vec![Token::Symbol {
+                symbol: Symbol::LCurly,
+            }])?;
+            self.compile_statements()?;
+            self.eat_keyword_or_symbol(vec![Token::Symbol {
+                symbol: Symbol::RCurly,
+            }])?;
+        }
 
         self.add_xml_event("-ifStatement");
         Ok(())
@@ -333,6 +394,20 @@ impl CompilationEngine {
 
         self.eat_keyword_or_symbol(vec![Token::Keyword {
             keyword: Keyword::While,
+        }])?;
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::LParen,
+        }])?;
+        self.compile_expression()?;
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::RParen,
+        }])?;
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::LCurly,
+        }])?;
+        self.compile_statements()?;
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::RCurly,
         }])?;
 
         self.add_xml_event("-whileStatement");
@@ -346,6 +421,26 @@ impl CompilationEngine {
         self.eat_keyword_or_symbol(vec![Token::Keyword {
             keyword: Keyword::Do,
         }])?;
+        self.eat_identifier()?;
+        let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::LParen,
+        }]);
+        if res.is_err() {
+            self.eat_keyword_or_symbol(vec![Token::Symbol {
+                symbol: Symbol::Period,
+            }])?;
+            self.eat_identifier()?;
+            self.eat_keyword_or_symbol(vec![Token::Symbol {
+                symbol: Symbol::LParen,
+            }])?;
+        }
+        self.compile_expression_list()?;
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::RParen,
+        }])?;
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::Semicolon,
+        }])?;
 
         self.add_xml_event("-doStatement");
         Ok(())
@@ -358,6 +453,15 @@ impl CompilationEngine {
         self.eat_keyword_or_symbol(vec![Token::Keyword {
             keyword: Keyword::Return,
         }])?;
+        let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::Semicolon,
+        }]);
+        if res.is_err() {
+            self.compile_expression()?;
+            self.eat_keyword_or_symbol(vec![Token::Symbol {
+                symbol: Symbol::Semicolon,
+            }])?;
+        }
 
         self.add_xml_event("-returnStatement");
         Ok(())
@@ -384,7 +488,23 @@ impl CompilationEngine {
          */
         self.add_xml_event("+term");
 
-        self.eat_identifier()?;
+        let res = self.eat_identifier();
+        if res.is_err() {
+            self.eat_keyword_or_symbol(vec![
+                Token::Keyword {
+                    keyword: Keyword::True,
+                },
+                Token::Keyword {
+                    keyword: Keyword::False,
+                },
+                Token::Keyword {
+                    keyword: Keyword::Null,
+                },
+                Token::Keyword {
+                    keyword: Keyword::This,
+                },
+            ])?;
+        }
 
         self.add_xml_event("-term");
         Ok(())
@@ -393,6 +513,37 @@ impl CompilationEngine {
     fn compile_expression_list(&mut self) -> Result<(), String> {
         // Compiles a (possibly empty) comma-separated list of expressions.
         self.add_xml_event("+expressionList");
+
+        let terms = vec![
+            Token::Keyword {
+                keyword: Keyword::True,
+            },
+            Token::Keyword {
+                keyword: Keyword::False,
+            },
+            Token::Keyword {
+                keyword: Keyword::Null,
+            },
+            Token::Keyword {
+                keyword: Keyword::This,
+            },
+        ];
+        let current_token = self.tokenizer.current_token.as_ref().unwrap();
+        if terms.contains(current_token) {
+            self.compile_expression()?;
+            while let Ok(()) = self.eat_keyword_or_symbol(vec![Token::Symbol {
+                symbol: Symbol::Comma,
+            }]) {
+                self.compile_expression()?;
+            }
+        } else if let Token::Identifier { .. } = current_token {
+            self.compile_expression()?;
+            while let Ok(()) = self.eat_keyword_or_symbol(vec![Token::Symbol {
+                symbol: Symbol::Comma,
+            }]) {
+                self.compile_expression()?;
+            }
+        }
 
         self.add_xml_event("-expressionList");
         Ok(())
