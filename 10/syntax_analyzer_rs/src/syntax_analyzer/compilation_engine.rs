@@ -228,6 +228,7 @@ impl CompilationEngine {
             symbol: Symbol::LCurly,
         }])?;
         self.compile_all_var_dec()?;
+        self.compile_statements()?;
         // self.eat_keyword_or_symbol(vec![Token::Symbol {
         //     symbol: Symbol::RCurly,
         // }])?;
@@ -270,35 +271,72 @@ impl CompilationEngine {
         Ok(())
     }
 
-    fn compile_statements(&self) {
+    fn compile_statements(&mut self) -> Result<(), String> {
         // Compiles a sequence of statments. Does not handle the enclosing "{}".
+        self.add_xml_event("+statements");
+
+        self.add_xml_event("-statements");
+        Ok(())
     }
 
-    fn compile_let(&self) {
+    fn compile_let(&mut self) -> Result<(), String> {
         // Compiles a let statement.
+        self.add_xml_event("+letStatement");
+
+        self.eat_keyword_or_symbol(vec![Token::Keyword {
+            keyword: Keyword::Let,
+        }])?;
+        self.eat_identifier()?;
+        self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::Equals,
+        }])?;
+        self.compile_expression()?;
+
+        self.add_xml_event("-letStatement");
+        Ok(())
     }
 
-    fn compile_if(&self) {
+    fn compile_if(&mut self) -> Result<(), String> {
         // Compiles an if statement, possibly with a trailing `else` clause.
+        self.add_xml_event("+ifStatement");
+
+        self.add_xml_event("-ifStatement");
+        Ok(())
     }
 
-    fn compile_while(&self) {
+    fn compile_while(&mut self) -> Result<(), String> {
         // Compiles a while statement.
+        self.add_xml_event("+whileStatement");
+
+        self.add_xml_event("-whileStatement");
+        Ok(())
     }
 
-    fn compile_do(&self) {
+    fn compile_do(&mut self) -> Result<(), String> {
         // Compiles a do statement.
+        self.add_xml_event("+doStatement");
+
+        self.add_xml_event("-doStatement");
+        Ok(())
     }
 
-    fn compile_return(&self) {
+    fn compile_return(&mut self) -> Result<(), String> {
         // Compiles a return statement.
+        self.add_xml_event("+returnStatement");
+
+        self.add_xml_event("-returnStatement");
+        Ok(())
     }
 
-    fn compile_expression(&self) {
+    fn compile_expression(&mut self) -> Result<(), String> {
         // Compiles an expression.
+        self.add_xml_event("+expression");
+
+        self.add_xml_event("-expression");
+        Ok(())
     }
 
-    fn compile_term(&self) {
+    fn compile_term(&mut self) -> Result<(), String> {
         /*
          * Compiles a `term`. If the current token is an `identifier`, the
          * routine must distinguish between a `variable`, an `array entry`, or
@@ -307,9 +345,17 @@ impl CompilationEngine {
          * possibilities. Any other token is not part of this term and should
          * not be advanced over.
          */
+        self.add_xml_event("+term");
+
+        self.add_xml_event("-term");
+        Ok(())
     }
 
-    fn compile_expression_list(&self) {
+    fn compile_expression_list(&mut self) -> Result<(), String> {
         // Compiles a (possibly empty) comma-separated list of expressions.
+        self.add_xml_event("+expressionList");
+
+        self.add_xml_event("-expressionList");
+        Ok(())
     }
 }
