@@ -472,6 +472,37 @@ impl CompilationEngine {
         self.add_xml_event("+expression");
 
         self.compile_term()?;
+        while let Ok(()) = self.eat_keyword_or_symbol(vec![
+            Token::Symbol {
+                symbol: Symbol::Plus,
+            },
+            Token::Symbol {
+                symbol: Symbol::Minus,
+            },
+            Token::Symbol {
+                symbol: Symbol::Asterisk,
+            },
+            Token::Symbol {
+                symbol: Symbol::Slash,
+            },
+            Token::Symbol {
+                symbol: Symbol::Ampersand,
+            },
+            Token::Symbol {
+                symbol: Symbol::Pipe,
+            },
+            Token::Symbol {
+                symbol: Symbol::LessThan,
+            },
+            Token::Symbol {
+                symbol: Symbol::GreaterThan,
+            },
+            Token::Symbol {
+                symbol: Symbol::Equals,
+            },
+        ]) {
+            self.compile_term()?;
+        }
 
         self.add_xml_event("-expression");
         Ok(())
@@ -488,24 +519,115 @@ impl CompilationEngine {
          */
         self.add_xml_event("+term");
 
-        let res = self.eat_identifier();
-        if res.is_err() {
-            self.eat_keyword_or_symbol(vec![
-                Token::Keyword {
-                    keyword: Keyword::True,
-                },
-                Token::Keyword {
-                    keyword: Keyword::False,
-                },
-                Token::Keyword {
-                    keyword: Keyword::Null,
-                },
-                Token::Keyword {
-                    keyword: Keyword::This,
-                },
-            ])?;
+        // Always attempt to eat unaryOp first as they can precede any term.
+        let res = self.eat_keyword_or_symbol(vec![
+            Token::Symbol {
+                symbol: Symbol::Minus,
+            },
+            Token::Symbol {
+                symbol: Symbol::Tilde,
+            },
+        ]);
+        if res.is_ok() {
+            self.compile_term()?;
+            self.add_xml_event("-term");
+            return Ok(());
         }
 
+        // First, attempt to eat another expression within parentheses.
+        let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::LParen,
+        }]);
+        if res.is_ok() {
+            self.compile_expression()?;
+            self.eat_keyword_or_symbol(vec![Token::Symbol {
+                symbol: Symbol::RParen,
+            }])?;
+            self.add_xml_event("-term");
+            return Ok(());
+        }
+
+        // Second, attempt to eat either integerConstant or stringConstant.
+        let res = self.eat_integer();
+        if res.is_ok() {
+            self.add_xml_event("-term");
+            return Ok(());
+        }
+        let res = self.eat_string();
+        if res.is_ok() {
+            self.add_xml_event("-term");
+            return Ok(());
+        }
+
+        // Third, attempt to eat keywordConstant.
+        let res = self.eat_keyword_or_symbol(vec![
+            Token::Keyword {
+                keyword: Keyword::True,
+            },
+            Token::Keyword {
+                keyword: Keyword::False,
+            },
+            Token::Keyword {
+                keyword: Keyword::Null,
+            },
+            Token::Keyword {
+                keyword: Keyword::This,
+            },
+        ]);
+        if res.is_ok() {
+            self.add_xml_event("-term");
+            return Ok(());
+        }
+
+        // Once all the previous options have been exhausted, the next token
+        // must be an identifier.
+        self.eat_identifier()?;
+
+        // The identifier can be a variable, array entry, or subroutine call
+        // based on the next token.
+        // First, check if it's an array entry.
+        let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::LBracket,
+        }]);
+        if res.is_ok() {
+            self.compile_expression()?;
+            self.eat_keyword_or_symbol(vec![Token::Symbol {
+                symbol: Symbol::RBracket,
+            }])?;
+            self.add_xml_event("-term");
+            return Ok(());
+        }
+
+        // Second, check if it's a subroutine call.
+        let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::LParen,
+        }]);
+        if res.is_ok() {
+            self.compile_expression_list()?;
+            self.eat_keyword_or_symbol(vec![Token::Symbol {
+                symbol: Symbol::RParen,
+            }])?;
+            self.add_xml_event("-term");
+            return Ok(());
+        }
+        let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
+            symbol: Symbol::Period,
+        }]);
+        if res.is_ok() {
+            self.eat_identifier()?;
+            self.eat_keyword_or_symbol(vec![Token::Symbol {
+                symbol: Symbol::LParen,
+            }])?;
+            self.compile_expression_list()?;
+            self.eat_keyword_or_symbol(vec![Token::Symbol {
+                symbol: Symbol::RParen,
+            }])?;
+            self.add_xml_event("-term");
+            return Ok(());
+        }
+
+        // If it's not an array index or a subroutine call, it is a variable.
+        // We've already eaten the identifier so we can return now.
         self.add_xml_event("-term");
         Ok(())
     }
@@ -529,6 +651,9 @@ impl CompilationEngine {
             } => true,
             Token::Identifier { .. } => true,
             Token::Symbol {
+                symbol: Symbol::LParen,
+            } => true,
+            Token::Symbol {
                 symbol: Symbol::Minus,
             } => true,
             Token::Symbol {
@@ -550,6 +675,7 @@ impl CompilationEngine {
                 self.compile_expression()?;
             }
         }
+
         self.add_xml_event("-expressionList");
         Ok(())
     }
