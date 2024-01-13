@@ -5,5 +5,3 @@ debug/
 target/
 **/*.rs.bk
 *.pdb
-FunctionCalls
-ProgramFlow
