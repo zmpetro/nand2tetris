@@ -12,7 +12,7 @@ fn read_infile(infile: &Path) -> String {
     read_to_string(infile).unwrap().parse().unwrap()
 }
 
-pub fn analyze_file(infile: &Path) -> Vec<String> {
+fn analyze_file(infile: &Path) -> Vec<String> {
     let source = read_infile(infile).into_bytes();
     let tokenizer = tokenizer::Tokenizer::new(source);
     let mut compilation_engine = compilation_engine::CompilationEngine::new(tokenizer);
