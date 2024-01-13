@@ -156,15 +156,15 @@ impl CompilationEngine {
 
     fn compile_all_class_var_dec(&mut self) -> Result<(), String> {
         // Compiles all class var declarations in a loop.
-        let class_var_decs = vec![
+        while match self.tokenizer.current_token.as_ref().unwrap() {
             Token::Keyword {
                 keyword: Keyword::Static,
-            },
+            } => true,
             Token::Keyword {
                 keyword: Keyword::Field,
-            },
-        ];
-        while class_var_decs.contains(self.tokenizer.current_token.as_ref().unwrap()) {
+            } => true,
+            _ => false,
+        } {
             self.compile_class_var_dec()?;
         }
         Ok(())
@@ -207,18 +207,18 @@ impl CompilationEngine {
 
     fn compile_all_subroutine_dec(&mut self) -> Result<(), String> {
         // Compiles all subroutine declarations in a loop.
-        let subroutine_decs = vec![
+        while match self.tokenizer.current_token.as_ref().unwrap() {
             Token::Keyword {
                 keyword: Keyword::Constructor,
-            },
+            } => true,
             Token::Keyword {
                 keyword: Keyword::Function,
-            },
+            } => true,
             Token::Keyword {
                 keyword: Keyword::Method,
-            },
-        ];
-        while subroutine_decs.contains(self.tokenizer.current_token.as_ref().unwrap()) {
+            } => true,
+            _ => false,
+        } {
             self.compile_subroutine_dec()?;
         }
         Ok(())
