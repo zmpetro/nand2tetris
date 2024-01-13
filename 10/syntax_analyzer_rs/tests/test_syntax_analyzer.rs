@@ -78,12 +78,22 @@ mod tests {
         let xml_comparison_file = current_dir.join("tests/test_data/Square/Square.xml");
         generate_xml_and_compare(&jack_infile, &xml_comparison_file);
     }
+
     #[test]
     #[allow(non_snake_case)]
     fn test_Square_SquareGame() {
         let current_dir = env::current_dir().unwrap();
         let jack_infile = current_dir.join("tests/test_data/Square/SquareGame.jack");
         let xml_comparison_file = current_dir.join("tests/test_data/Square/SquareGame.xml");
+        generate_xml_and_compare(&jack_infile, &xml_comparison_file);
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_ArrayTest_Main() {
+        let current_dir = env::current_dir().unwrap();
+        let jack_infile = current_dir.join("tests/test_data/ArrayTest/Main.jack");
+        let xml_comparison_file = current_dir.join("tests/test_data/ArrayTest/Main.xml");
         generate_xml_and_compare(&jack_infile, &xml_comparison_file);
     }
 }
