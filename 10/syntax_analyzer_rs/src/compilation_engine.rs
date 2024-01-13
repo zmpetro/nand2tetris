@@ -510,33 +510,39 @@ impl CompilationEngine {
         Ok(())
     }
 
+    fn current_token_begins_term(&self) -> bool {
+        let current_token = self.tokenizer.current_token.as_ref().unwrap();
+        return match current_token {
+            Token::IntegerConstant { .. } => true,
+            Token::StringConstant { .. } => true,
+            Token::Keyword {
+                keyword: Keyword::True,
+            } => true,
+            Token::Keyword {
+                keyword: Keyword::False,
+            } => true,
+            Token::Keyword {
+                keyword: Keyword::Null,
+            } => true,
+            Token::Keyword {
+                keyword: Keyword::This,
+            } => true,
+            Token::Identifier { .. } => true,
+            Token::Symbol {
+                symbol: Symbol::Minus,
+            } => true,
+            Token::Symbol {
+                symbol: Symbol::Tilde,
+            } => true,
+            _ => false,
+        };
+    }
+
     fn compile_expression_list(&mut self) -> Result<(), String> {
         // Compiles a (possibly empty) comma-separated list of expressions.
         self.add_xml_event("+expressionList");
 
-        let terms = vec![
-            Token::Keyword {
-                keyword: Keyword::True,
-            },
-            Token::Keyword {
-                keyword: Keyword::False,
-            },
-            Token::Keyword {
-                keyword: Keyword::Null,
-            },
-            Token::Keyword {
-                keyword: Keyword::This,
-            },
-        ];
-        let current_token = self.tokenizer.current_token.as_ref().unwrap();
-        if terms.contains(current_token) {
-            self.compile_expression()?;
-            while let Ok(()) = self.eat_keyword_or_symbol(vec![Token::Symbol {
-                symbol: Symbol::Comma,
-            }]) {
-                self.compile_expression()?;
-            }
-        } else if let Token::Identifier { .. } = current_token {
+        if self.current_token_begins_term() {
             self.compile_expression()?;
             while let Ok(()) = self.eat_keyword_or_symbol(vec![Token::Symbol {
                 symbol: Symbol::Comma,
@@ -544,7 +550,6 @@ impl CompilationEngine {
                 self.compile_expression()?;
             }
         }
-
         self.add_xml_event("-expressionList");
         Ok(())
     }
