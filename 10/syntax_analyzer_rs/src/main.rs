@@ -115,7 +115,8 @@ mod tests {
     }
 
     #[test]
-    fn test_expressionless_square_main() {
+    #[allow(non_snake_case)]
+    fn test_ExpressionLessSquare_Main() {
         let current_dir = env::current_dir().unwrap();
         let jack_infile = current_dir.join("test_data/ExpressionLessSquare/Main.jack");
         let xml_comparison_file = current_dir.join("test_data/ExpressionLessSquare/Main.xml");
@@ -123,7 +124,8 @@ mod tests {
     }
 
     #[test]
-    fn test_expressionless_square_square() {
+    #[allow(non_snake_case)]
+    fn test_ExpressionLessSquare_Square() {
         let current_dir = env::current_dir().unwrap();
         let jack_infile = current_dir.join("test_data/ExpressionLessSquare/Square.jack");
         let xml_comparison_file = current_dir.join("test_data/ExpressionLessSquare/Square.xml");
@@ -131,7 +133,8 @@ mod tests {
     }
 
     #[test]
-    fn test_expressionless_square_squaregame() {
+    #[allow(non_snake_case)]
+    fn test_ExpressionLessSquare_SquareGame() {
         let current_dir = env::current_dir().unwrap();
         let jack_infile = current_dir.join("test_data/ExpressionLessSquare/SquareGame.jack");
         let xml_comparison_file = current_dir.join("test_data/ExpressionLessSquare/SquareGame.xml");
