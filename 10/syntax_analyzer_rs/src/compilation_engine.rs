@@ -1,4 +1,4 @@
-use crate::syntax_analyzer::tokenizer::{Keyword, Symbol, Token, Tokenizer};
+use crate::tokenizer::{Keyword, Symbol, Token, Tokenizer};
 
 pub struct CompilationEngine {
     tokenizer: Tokenizer,
