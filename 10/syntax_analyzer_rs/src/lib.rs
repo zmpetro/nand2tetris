@@ -31,13 +31,25 @@ pub fn make_event_from_line(line: &str) -> XmlEvent {
     }
 }
 
+pub fn get_emitter_config() -> EmitterConfig {
+    EmitterConfig {
+        line_separator: "\n".into(),
+        indent_string: "  ".into(),
+        perform_indent: true,
+        perform_escaping: false,
+        write_document_declaration: false,
+        normalize_empty_elements: false,
+        cdata_to_characters: false,
+        keep_element_names_stack: true,
+        autopad_comments: true,
+        pad_self_closing: true,
+    }
+}
+
 pub fn write_lines(outfile: &PathBuf, xml_output: &[String]) {
     let outfile = File::create(outfile).unwrap();
-    let mut writer = EmitterConfig::new()
-        .perform_indent(true)
-        .write_document_declaration(false)
-        .normalize_empty_elements(false)
-        .create_writer(outfile);
+    let emitter_config = get_emitter_config();
+    let mut writer = emitter_config.create_writer(outfile);
     for line in xml_output {
         let event = make_event_from_line(line);
         if let Err(e) = writer.write(event) {

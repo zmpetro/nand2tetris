@@ -1,20 +1,15 @@
-use syntax_analyzer_rs::{analyze_file, make_event_from_line, read_infile};
+use syntax_analyzer_rs::{analyze_file, get_emitter_config, make_event_from_line, read_infile};
 
 mod tests {
-    use crate::{analyze_file, make_event_from_line, read_infile};
+    use crate::{analyze_file, get_emitter_config, make_event_from_line, read_infile};
 
     use std::env;
     use std::io::Cursor;
     use std::path::PathBuf;
 
-    use xml::writer::EmitterConfig;
-
     fn write_lines(buff: &mut Cursor<Vec<u8>>, xml_output: &[String]) {
-        let mut writer = EmitterConfig::new()
-            .perform_indent(true)
-            .write_document_declaration(false)
-            .normalize_empty_elements(false)
-            .create_writer(buff);
+        let emitter_config = get_emitter_config();
+        let mut writer = emitter_config.create_writer(buff);
         for line in xml_output {
             let event = make_event_from_line(line);
             if let Err(e) = writer.write(event) {
