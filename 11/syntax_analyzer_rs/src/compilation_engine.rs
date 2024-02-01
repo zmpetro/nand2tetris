@@ -117,11 +117,17 @@ impl CompilationEngine {
     fn eat_class_or_subroutine_use_identifier(
         &mut self,
         category: IdentifierCategory,
+        predefined_token: Option<&Token>,
     ) -> Result<&Token, String> {
-        let current_token = self.tokenizer.current_token.as_ref().unwrap();
+        let current_token = match predefined_token {
+            Some(token) => token,
+            None => self.tokenizer.current_token.as_ref().unwrap(),
+        };
         if let Token::Identifier { .. } = current_token {
             self.add_xml_events(current_token.to_xml_events());
-            self.tokenizer.advance();
+            if predefined_token.is_none() {
+                self.tokenizer.advance();
+            }
             return Ok(current_token);
         } else {
             return Err(format!("Token is not an Identifier: {:?}", current_token));
@@ -143,12 +149,30 @@ impl CompilationEngine {
         }
     }
 
-    fn eat_variable_use_identifier(&mut self) -> Result<(), String> {
-        let current_token = self.tokenizer.current_token.as_ref().unwrap();
+    fn eat_variable_use_identifier(
+        &mut self,
+        predefined_token: Option<&Token>,
+    ) -> Result<(), String> {
+        let current_token = match predefined_token {
+            Some(token) => token,
+            None => self.tokenizer.current_token.as_ref().unwrap(),
+        };
         if let Token::Identifier { .. } = current_token {
             self.add_xml_events(current_token.to_xml_events());
-            self.tokenizer.advance();
+            if predefined_token.is_none() {
+                self.tokenizer.advance();
+            }
             return Ok(());
+        } else {
+            return Err(format!("Token is not an Identifier: {:?}", current_token));
+        }
+    }
+
+    fn eat_identifier_without_writing_code(&mut self) -> Result<&Token, String> {
+        let current_token = self.tokenizer.current_token.as_ref().unwrap();
+        if let Token::Identifier { .. } = current_token {
+            self.tokenizer.advance();
+            return Ok(current_token);
         } else {
             return Err(format!("Token is not an Identifier: {:?}", current_token));
         }
@@ -199,7 +223,7 @@ impl CompilationEngine {
         ]);
         if res.is_err() {
             // Couldn't eat int, char, or boolean. Attempt to eat className
-            res = self.eat_class_or_subroutine_use_identifier(IdentifierCategory::Class);
+            res = self.eat_class_or_subroutine_use_identifier(IdentifierCategory::Class, None);
             if res.is_err() {
                 return Err(format!(
                     "current_token: {:?}  expected_token: type",
@@ -413,7 +437,7 @@ impl CompilationEngine {
         self.eat_keyword_or_symbol(vec![Token::Keyword {
             keyword: Keyword::Let,
         }])?;
-        self.eat_variable_use_identifier()?;
+        self.eat_variable_use_identifier(None)?;
         let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
             symbol: Symbol::Equals,
         }]);
@@ -509,18 +533,27 @@ impl CompilationEngine {
         self.eat_keyword_or_symbol(vec![Token::Keyword {
             keyword: Keyword::Do,
         }])?;
-        self.eat_identifier()?;
+        let initial_identifier = self.eat_identifier_without_writing_code()?;
         let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
             symbol: Symbol::LParen,
         }]);
         if res.is_err() {
+            self.eat_class_or_subroutine_use_identifier(
+                IdentifierCategory::Class,
+                Some(initial_identifier),
+            )?;
             self.eat_keyword_or_symbol(vec![Token::Symbol {
                 symbol: Symbol::Period,
             }])?;
-            self.eat_identifier()?;
+            self.eat_class_or_subroutine_use_identifier(IdentifierCategory::Subroutine, None)?;
             self.eat_keyword_or_symbol(vec![Token::Symbol {
                 symbol: Symbol::LParen,
             }])?;
+        } else {
+            self.eat_class_or_subroutine_use_identifier(
+                IdentifierCategory::Subroutine,
+                Some(initial_identifier),
+            )?;
         }
         self.compile_expression_list()?;
         self.eat_keyword_or_symbol(vec![Token::Symbol {
@@ -669,7 +702,7 @@ impl CompilationEngine {
 
         // Once all the previous options have been exhausted, the next token
         // must be an identifier.
-        self.eat_identifier()?;
+        let initial_identifier = self.eat_identifier_without_writing_code()?;
 
         // The identifier can be a variable, array entry, or subroutine call
         // based on the next token.
@@ -678,6 +711,7 @@ impl CompilationEngine {
             symbol: Symbol::LBracket,
         }]);
         if res.is_ok() {
+            self.eat_variable_use_identifier(Some(initial_identifier))?;
             self.compile_expression()?;
             self.eat_keyword_or_symbol(vec![Token::Symbol {
                 symbol: Symbol::RBracket,
