@@ -57,12 +57,24 @@ impl CompilationEngine {
         self.result.extend(events);
     }
 
-    fn eat_keyword_or_symbol(&mut self, expected_tokens: Vec<Token>) -> Result<&Token, String> {
-        // Checks if the current token is one of the expected tokens (keywords or symbols).
-        let current_token = self.tokenizer.current_token.as_ref().unwrap();
-        if expected_tokens.contains(current_token) {
-            self.add_xml_events(current_token.to_xml_events());
-            self.tokenizer.advance();
+    fn eat_keyword_or_symbol(
+        &mut self,
+        expected_tokens: Vec<Token>,
+        predefined_token: Option<&Token>,
+        write_code: bool,
+    ) -> Result<Token, String> {
+        let current_token = match predefined_token {
+            Some(token) => token,
+            None => self.tokenizer.current_token.as_ref().unwrap(),
+        }
+        .clone();
+        if expected_tokens.contains(&current_token) {
+            if write_code {
+                self.add_xml_events(current_token.to_xml_events());
+            }
+            if predefined_token.is_none() {
+                self.tokenizer.advance();
+            }
             return Ok(current_token);
         } else {
             return Err(format!(
@@ -118,11 +130,12 @@ impl CompilationEngine {
         &mut self,
         category: IdentifierCategory,
         predefined_token: Option<&Token>,
-    ) -> Result<&Token, String> {
+    ) -> Result<Token, String> {
         let current_token = match predefined_token {
             Some(token) => token,
             None => self.tokenizer.current_token.as_ref().unwrap(),
-        };
+        }
+        .clone();
         if let Token::Identifier { .. } = current_token {
             self.add_xml_events(current_token.to_xml_events());
             if predefined_token.is_none() {
@@ -168,8 +181,8 @@ impl CompilationEngine {
         }
     }
 
-    fn eat_identifier_without_writing_code(&mut self) -> Result<&Token, String> {
-        let current_token = self.tokenizer.current_token.as_ref().unwrap();
+    fn eat_identifier_without_writing_code(&mut self) -> Result<Token, String> {
+        let current_token = self.tokenizer.current_token.as_ref().unwrap().clone();
         if let Token::Identifier { .. } = current_token {
             self.tokenizer.advance();
             return Ok(current_token);
@@ -186,18 +199,30 @@ impl CompilationEngine {
         self.tokenizer.advance();
         self.add_xml_event("+class");
 
-        self.eat_keyword_or_symbol(vec![Token::Keyword {
-            keyword: Keyword::Class,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Keyword {
+                keyword: Keyword::Class,
+            }],
+            None,
+            true,
+        )?;
         self.eat_class_or_subroutine_definition_identifier(IdentifierCategory::Class)?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::LCurly,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::LCurly,
+            }],
+            None,
+            true,
+        )?;
         self.compile_all_class_var_dec()?;
         self.compile_all_subroutine_dec()?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::RCurly,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::RCurly,
+            }],
+            None,
+            true,
+        )?;
 
         self.add_xml_event("-class");
         self.add_xml_event("\n");
@@ -209,18 +234,22 @@ impl CompilationEngine {
         Ok(())
     }
 
-    fn eat_type(&mut self) -> Result<&Token, String> {
-        let mut res = self.eat_keyword_or_symbol(vec![
-            Token::Keyword {
-                keyword: Keyword::Int,
-            },
-            Token::Keyword {
-                keyword: Keyword::Char,
-            },
-            Token::Keyword {
-                keyword: Keyword::Boolean,
-            },
-        ]);
+    fn eat_type(&mut self) -> Result<Token, String> {
+        let mut res = self.eat_keyword_or_symbol(
+            vec![
+                Token::Keyword {
+                    keyword: Keyword::Int,
+                },
+                Token::Keyword {
+                    keyword: Keyword::Char,
+                },
+                Token::Keyword {
+                    keyword: Keyword::Boolean,
+                },
+            ],
+            None,
+            true,
+        );
         if res.is_err() {
             // Couldn't eat int, char, or boolean. Attempt to eat className
             res = self.eat_class_or_subroutine_use_identifier(IdentifierCategory::Class, None);
@@ -238,26 +267,38 @@ impl CompilationEngine {
         // Compiles a static variable declaration, or a field declaration.
         self.add_xml_event("+classVarDec");
 
-        let static_or_field = self.eat_keyword_or_symbol(vec![
-            Token::Keyword {
-                keyword: Keyword::Static,
-            },
-            Token::Keyword {
-                keyword: Keyword::Field,
-            },
-        ])?;
-        let kind = keyword_to_kind(static_or_field);
+        let static_or_field = self.eat_keyword_or_symbol(
+            vec![
+                Token::Keyword {
+                    keyword: Keyword::Static,
+                },
+                Token::Keyword {
+                    keyword: Keyword::Field,
+                },
+            ],
+            None,
+            true,
+        )?;
+        let kind = keyword_to_kind(&static_or_field);
         let type_ = self.eat_type()?;
-        let type_ = type_to_string(type_);
-        self.eat_variable_definition_identifier(kind, type_)?;
-        while let Ok(_) = self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::Comma,
-        }]) {
-            self.eat_variable_definition_identifier(kind, type_)?;
+        let type_ = type_to_string(&type_);
+        self.eat_variable_definition_identifier(kind.clone(), type_.clone())?;
+        while let Ok(_) = self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::Comma,
+            }],
+            None,
+            true,
+        ) {
+            self.eat_variable_definition_identifier(kind.clone(), type_.clone())?;
         }
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::Semicolon,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::Semicolon,
+            }],
+            None,
+            true,
+        )?;
 
         self.add_xml_event("-classVarDec");
         Ok(())
@@ -283,31 +324,47 @@ impl CompilationEngine {
         // Compiles a complete method, function, or constructor.
         self.add_xml_event("+subroutineDec");
 
-        self.eat_keyword_or_symbol(vec![
-            Token::Keyword {
-                keyword: Keyword::Constructor,
-            },
-            Token::Keyword {
-                keyword: Keyword::Function,
-            },
-            Token::Keyword {
-                keyword: Keyword::Method,
-            },
-        ])?;
+        self.eat_keyword_or_symbol(
+            vec![
+                Token::Keyword {
+                    keyword: Keyword::Constructor,
+                },
+                Token::Keyword {
+                    keyword: Keyword::Function,
+                },
+                Token::Keyword {
+                    keyword: Keyword::Method,
+                },
+            ],
+            None,
+            true,
+        )?;
         let res = self.eat_type();
         if res.is_err() {
-            self.eat_keyword_or_symbol(vec![Token::Keyword {
-                keyword: Keyword::Void,
-            }])?;
+            self.eat_keyword_or_symbol(
+                vec![Token::Keyword {
+                    keyword: Keyword::Void,
+                }],
+                None,
+                true,
+            )?;
         }
         self.eat_class_or_subroutine_definition_identifier(IdentifierCategory::Subroutine)?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::LParen,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::LParen,
+            }],
+            None,
+            true,
+        )?;
         self.compile_parameter_list()?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::RParen,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::RParen,
+            }],
+            None,
+            true,
+        )?;
         self.compile_subroutine_body()?;
 
         self.add_xml_event("-subroutineDec");
@@ -339,13 +396,17 @@ impl CompilationEngine {
 
         let res = self.eat_type();
         if let Ok(token) = res {
-            let type_ = type_to_string(token);
+            let type_ = type_to_string(&token);
             self.eat_variable_definition_identifier(Kind::Arg, type_)?;
-            while let Ok(_) = self.eat_keyword_or_symbol(vec![Token::Symbol {
-                symbol: Symbol::Comma,
-            }]) {
+            while let Ok(_) = self.eat_keyword_or_symbol(
+                vec![Token::Symbol {
+                    symbol: Symbol::Comma,
+                }],
+                None,
+                true,
+            ) {
                 let type_ = self.eat_type()?;
-                let type_ = type_to_string(type_);
+                let type_ = type_to_string(&type_);
                 self.eat_variable_definition_identifier(Kind::Arg, type_)?;
             }
         }
@@ -358,14 +419,22 @@ impl CompilationEngine {
         // Compiles a subroutine's body.
         self.add_xml_event("+subroutineBody");
 
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::LCurly,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::LCurly,
+            }],
+            None,
+            true,
+        )?;
         self.compile_all_var_dec()?;
         self.compile_statements()?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::RCurly,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::RCurly,
+            }],
+            None,
+            true,
+        )?;
 
         self.add_xml_event("-subroutineBody");
         Ok(())
@@ -375,20 +444,32 @@ impl CompilationEngine {
         // Compiles a `var` declaration.
         self.add_xml_event("+varDec");
 
-        self.eat_keyword_or_symbol(vec![Token::Keyword {
-            keyword: Keyword::Var,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Keyword {
+                keyword: Keyword::Var,
+            }],
+            None,
+            true,
+        )?;
         let type_ = self.eat_type()?;
-        let type_ = type_to_string(type_);
-        self.eat_variable_definition_identifier(Kind::Var, type_)?;
-        while let Ok(_) = self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::Comma,
-        }]) {
-            self.eat_variable_definition_identifier(Kind::Var, type_)?;
+        let type_ = type_to_string(&type_);
+        self.eat_variable_definition_identifier(Kind::Var, type_.clone())?;
+        while let Ok(_) = self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::Comma,
+            }],
+            None,
+            true,
+        ) {
+            self.eat_variable_definition_identifier(Kind::Var, type_.clone())?;
         }
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::Semicolon,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::Semicolon,
+            }],
+            None,
+            true,
+        )?;
 
         self.add_xml_event("-varDec");
         Ok(())
@@ -434,29 +515,53 @@ impl CompilationEngine {
         // Compiles a let statement.
         self.add_xml_event("+letStatement");
 
-        self.eat_keyword_or_symbol(vec![Token::Keyword {
-            keyword: Keyword::Let,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Keyword {
+                keyword: Keyword::Let,
+            }],
+            None,
+            true,
+        )?;
         self.eat_variable_use_identifier(None)?;
-        let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::Equals,
-        }]);
-        if res.is_err() {
-            self.eat_keyword_or_symbol(vec![Token::Symbol {
-                symbol: Symbol::LBracket,
-            }])?;
-            self.compile_expression()?;
-            self.eat_keyword_or_symbol(vec![Token::Symbol {
-                symbol: Symbol::RBracket,
-            }])?;
-            self.eat_keyword_or_symbol(vec![Token::Symbol {
+        let res = self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
                 symbol: Symbol::Equals,
-            }])?;
+            }],
+            None,
+            true,
+        );
+        if res.is_err() {
+            self.eat_keyword_or_symbol(
+                vec![Token::Symbol {
+                    symbol: Symbol::LBracket,
+                }],
+                None,
+                true,
+            )?;
+            self.compile_expression()?;
+            self.eat_keyword_or_symbol(
+                vec![Token::Symbol {
+                    symbol: Symbol::RBracket,
+                }],
+                None,
+                true,
+            )?;
+            self.eat_keyword_or_symbol(
+                vec![Token::Symbol {
+                    symbol: Symbol::Equals,
+                }],
+                None,
+                true,
+            )?;
         }
         self.compile_expression()?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::Semicolon,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::Semicolon,
+            }],
+            None,
+            true,
+        )?;
 
         self.add_xml_event("-letStatement");
         Ok(())
@@ -466,34 +571,66 @@ impl CompilationEngine {
         // Compiles an if statement, possibly with a trailing `else` clause.
         self.add_xml_event("+ifStatement");
 
-        self.eat_keyword_or_symbol(vec![Token::Keyword {
-            keyword: Keyword::If,
-        }])?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::LParen,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Keyword {
+                keyword: Keyword::If,
+            }],
+            None,
+            true,
+        )?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::LParen,
+            }],
+            None,
+            true,
+        )?;
         self.compile_expression()?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::RParen,
-        }])?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::LCurly,
-        }])?;
-        self.compile_statements()?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::RCurly,
-        }])?;
-        let res = self.eat_keyword_or_symbol(vec![Token::Keyword {
-            keyword: Keyword::Else,
-        }]);
-        if res.is_ok() {
-            self.eat_keyword_or_symbol(vec![Token::Symbol {
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::RParen,
+            }],
+            None,
+            true,
+        )?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
                 symbol: Symbol::LCurly,
-            }])?;
-            self.compile_statements()?;
-            self.eat_keyword_or_symbol(vec![Token::Symbol {
+            }],
+            None,
+            true,
+        )?;
+        self.compile_statements()?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
                 symbol: Symbol::RCurly,
-            }])?;
+            }],
+            None,
+            true,
+        )?;
+        let res = self.eat_keyword_or_symbol(
+            vec![Token::Keyword {
+                keyword: Keyword::Else,
+            }],
+            None,
+            true,
+        );
+        if res.is_ok() {
+            self.eat_keyword_or_symbol(
+                vec![Token::Symbol {
+                    symbol: Symbol::LCurly,
+                }],
+                None,
+                true,
+            )?;
+            self.compile_statements()?;
+            self.eat_keyword_or_symbol(
+                vec![Token::Symbol {
+                    symbol: Symbol::RCurly,
+                }],
+                None,
+                true,
+            )?;
         }
 
         self.add_xml_event("-ifStatement");
@@ -504,23 +641,43 @@ impl CompilationEngine {
         // Compiles a while statement.
         self.add_xml_event("+whileStatement");
 
-        self.eat_keyword_or_symbol(vec![Token::Keyword {
-            keyword: Keyword::While,
-        }])?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::LParen,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Keyword {
+                keyword: Keyword::While,
+            }],
+            None,
+            true,
+        )?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::LParen,
+            }],
+            None,
+            true,
+        )?;
         self.compile_expression()?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::RParen,
-        }])?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::LCurly,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::RParen,
+            }],
+            None,
+            true,
+        )?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::LCurly,
+            }],
+            None,
+            true,
+        )?;
         self.compile_statements()?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::RCurly,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::RCurly,
+            }],
+            None,
+            true,
+        )?;
 
         self.add_xml_event("-whileStatement");
         Ok(())
@@ -530,38 +687,72 @@ impl CompilationEngine {
         // Compiles a do statement.
         self.add_xml_event("+doStatement");
 
-        self.eat_keyword_or_symbol(vec![Token::Keyword {
-            keyword: Keyword::Do,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Keyword {
+                keyword: Keyword::Do,
+            }],
+            None,
+            true,
+        )?;
         let initial_identifier = self.eat_identifier_without_writing_code()?;
-        let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::LParen,
-        }]);
-        if res.is_err() {
-            self.eat_class_or_subroutine_use_identifier(
-                IdentifierCategory::Class,
-                Some(initial_identifier),
-            )?;
-            self.eat_keyword_or_symbol(vec![Token::Symbol {
-                symbol: Symbol::Period,
-            }])?;
-            self.eat_class_or_subroutine_use_identifier(IdentifierCategory::Subroutine, None)?;
-            self.eat_keyword_or_symbol(vec![Token::Symbol {
+        let left_paren = self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
                 symbol: Symbol::LParen,
-            }])?;
-        } else {
-            self.eat_class_or_subroutine_use_identifier(
-                IdentifierCategory::Subroutine,
-                Some(initial_identifier),
-            )?;
-        }
+            }],
+            None,
+            false,
+        );
+        match left_paren {
+            Ok(token) => {
+                self.eat_class_or_subroutine_use_identifier(
+                    IdentifierCategory::Subroutine,
+                    Some(&initial_identifier),
+                )?;
+                self.eat_keyword_or_symbol(
+                    vec![Token::Symbol {
+                        symbol: Symbol::LParen,
+                    }],
+                    Some(&token),
+                    true,
+                )?;
+            }
+            Err(_) => {
+                self.eat_class_or_subroutine_use_identifier(
+                    IdentifierCategory::Class,
+                    Some(&initial_identifier),
+                )?;
+                self.eat_keyword_or_symbol(
+                    vec![Token::Symbol {
+                        symbol: Symbol::Period,
+                    }],
+                    None,
+                    true,
+                )?;
+                self.eat_class_or_subroutine_use_identifier(IdentifierCategory::Subroutine, None)?;
+                self.eat_keyword_or_symbol(
+                    vec![Token::Symbol {
+                        symbol: Symbol::LParen,
+                    }],
+                    None,
+                    true,
+                )?;
+            }
+        };
         self.compile_expression_list()?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::RParen,
-        }])?;
-        self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::Semicolon,
-        }])?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::RParen,
+            }],
+            None,
+            true,
+        )?;
+        self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::Semicolon,
+            }],
+            None,
+            true,
+        )?;
 
         self.add_xml_event("-doStatement");
         Ok(())
@@ -571,17 +762,29 @@ impl CompilationEngine {
         // Compiles a return statement.
         self.add_xml_event("+returnStatement");
 
-        self.eat_keyword_or_symbol(vec![Token::Keyword {
-            keyword: Keyword::Return,
-        }])?;
-        let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::Semicolon,
-        }]);
+        self.eat_keyword_or_symbol(
+            vec![Token::Keyword {
+                keyword: Keyword::Return,
+            }],
+            None,
+            true,
+        )?;
+        let res = self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::Semicolon,
+            }],
+            None,
+            true,
+        );
         if res.is_err() {
             self.compile_expression()?;
-            self.eat_keyword_or_symbol(vec![Token::Symbol {
-                symbol: Symbol::Semicolon,
-            }])?;
+            self.eat_keyword_or_symbol(
+                vec![Token::Symbol {
+                    symbol: Symbol::Semicolon,
+                }],
+                None,
+                true,
+            )?;
         }
 
         self.add_xml_event("-returnStatement");
@@ -593,35 +796,39 @@ impl CompilationEngine {
         self.add_xml_event("+expression");
 
         self.compile_term()?;
-        while let Ok(_) = self.eat_keyword_or_symbol(vec![
-            Token::Symbol {
-                symbol: Symbol::Plus,
-            },
-            Token::Symbol {
-                symbol: Symbol::Minus,
-            },
-            Token::Symbol {
-                symbol: Symbol::Asterisk,
-            },
-            Token::Symbol {
-                symbol: Symbol::Slash,
-            },
-            Token::Symbol {
-                symbol: Symbol::Ampersand,
-            },
-            Token::Symbol {
-                symbol: Symbol::Pipe,
-            },
-            Token::Symbol {
-                symbol: Symbol::LessThan,
-            },
-            Token::Symbol {
-                symbol: Symbol::GreaterThan,
-            },
-            Token::Symbol {
-                symbol: Symbol::Equals,
-            },
-        ]) {
+        while let Ok(_) = self.eat_keyword_or_symbol(
+            vec![
+                Token::Symbol {
+                    symbol: Symbol::Plus,
+                },
+                Token::Symbol {
+                    symbol: Symbol::Minus,
+                },
+                Token::Symbol {
+                    symbol: Symbol::Asterisk,
+                },
+                Token::Symbol {
+                    symbol: Symbol::Slash,
+                },
+                Token::Symbol {
+                    symbol: Symbol::Ampersand,
+                },
+                Token::Symbol {
+                    symbol: Symbol::Pipe,
+                },
+                Token::Symbol {
+                    symbol: Symbol::LessThan,
+                },
+                Token::Symbol {
+                    symbol: Symbol::GreaterThan,
+                },
+                Token::Symbol {
+                    symbol: Symbol::Equals,
+                },
+            ],
+            None,
+            true,
+        ) {
             self.compile_term()?;
         }
 
@@ -641,14 +848,18 @@ impl CompilationEngine {
         self.add_xml_event("+term");
 
         // Always attempt to eat unaryOp first as they can precede any term.
-        let res = self.eat_keyword_or_symbol(vec![
-            Token::Symbol {
-                symbol: Symbol::Minus,
-            },
-            Token::Symbol {
-                symbol: Symbol::Tilde,
-            },
-        ]);
+        let res = self.eat_keyword_or_symbol(
+            vec![
+                Token::Symbol {
+                    symbol: Symbol::Minus,
+                },
+                Token::Symbol {
+                    symbol: Symbol::Tilde,
+                },
+            ],
+            None,
+            true,
+        );
         if res.is_ok() {
             self.compile_term()?;
             self.add_xml_event("-term");
@@ -656,14 +867,22 @@ impl CompilationEngine {
         }
 
         // First, attempt to eat another expression within parentheses.
-        let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::LParen,
-        }]);
+        let res = self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::LParen,
+            }],
+            None,
+            true,
+        );
         if res.is_ok() {
             self.compile_expression()?;
-            self.eat_keyword_or_symbol(vec![Token::Symbol {
-                symbol: Symbol::RParen,
-            }])?;
+            self.eat_keyword_or_symbol(
+                vec![Token::Symbol {
+                    symbol: Symbol::RParen,
+                }],
+                None,
+                true,
+            )?;
             self.add_xml_event("-term");
             return Ok(());
         }
@@ -681,20 +900,24 @@ impl CompilationEngine {
         }
 
         // Third, attempt to eat keywordConstant.
-        let res = self.eat_keyword_or_symbol(vec![
-            Token::Keyword {
-                keyword: Keyword::True,
-            },
-            Token::Keyword {
-                keyword: Keyword::False,
-            },
-            Token::Keyword {
-                keyword: Keyword::Null,
-            },
-            Token::Keyword {
-                keyword: Keyword::This,
-            },
-        ]);
+        let res = self.eat_keyword_or_symbol(
+            vec![
+                Token::Keyword {
+                    keyword: Keyword::True,
+                },
+                Token::Keyword {
+                    keyword: Keyword::False,
+                },
+                Token::Keyword {
+                    keyword: Keyword::Null,
+                },
+                Token::Keyword {
+                    keyword: Keyword::This,
+                },
+            ],
+            None,
+            true,
+        );
         if res.is_ok() {
             self.add_xml_event("-term");
             return Ok(());
@@ -707,49 +930,117 @@ impl CompilationEngine {
         // The identifier can be a variable, array entry, or subroutine call
         // based on the next token.
         // First, check if it's an array entry.
-        let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::LBracket,
-        }]);
-        if res.is_ok() {
-            self.eat_variable_use_identifier(Some(initial_identifier))?;
+        let left_bracket = self.eat_keyword_or_symbol(
+            vec![Token::Symbol {
+                symbol: Symbol::LBracket,
+            }],
+            None,
+            false,
+        );
+        if left_bracket.is_ok() {
+            self.eat_variable_use_identifier(Some(&initial_identifier))?;
+            self.eat_keyword_or_symbol(
+                vec![Token::Symbol {
+                    symbol: Symbol::LBracket,
+                }],
+                Some(&left_bracket.unwrap()),
+                true,
+            )?;
             self.compile_expression()?;
-            self.eat_keyword_or_symbol(vec![Token::Symbol {
-                symbol: Symbol::RBracket,
-            }])?;
+            self.eat_keyword_or_symbol(
+                vec![Token::Symbol {
+                    symbol: Symbol::RBracket,
+                }],
+                None,
+                true,
+            )?;
             self.add_xml_event("-term");
             return Ok(());
         }
 
-        // Second, check if it's a subroutine call.
-        let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::LParen,
-        }]);
-        if res.is_ok() {
-            self.compile_expression_list()?;
-            self.eat_keyword_or_symbol(vec![Token::Symbol {
-                symbol: Symbol::RParen,
-            }])?;
-            self.add_xml_event("-term");
-            return Ok(());
-        }
-        let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
-            symbol: Symbol::Period,
-        }]);
-        if res.is_ok() {
-            self.eat_identifier()?;
-            self.eat_keyword_or_symbol(vec![Token::Symbol {
-                symbol: Symbol::LParen,
-            }])?;
-            self.compile_expression_list()?;
-            self.eat_keyword_or_symbol(vec![Token::Symbol {
-                symbol: Symbol::RParen,
-            }])?;
-            self.add_xml_event("-term");
-            return Ok(());
+        // Second, check if it's a subroutine call or a variable.
+        let next_token = self.eat_keyword_or_symbol(
+            vec![
+                Token::Symbol {
+                    symbol: Symbol::LParen,
+                },
+                Token::Symbol {
+                    symbol: Symbol::Period,
+                },
+            ],
+            None,
+            false,
+        );
+        match next_token {
+            Ok(token) => match token {
+                Token::Symbol { ref symbol } => match symbol {
+                    Symbol::LParen => {
+                        self.eat_class_or_subroutine_use_identifier(
+                            IdentifierCategory::Subroutine,
+                            Some(&initial_identifier),
+                        )?;
+                        self.eat_keyword_or_symbol(
+                            vec![Token::Symbol {
+                                symbol: Symbol::LParen,
+                            }],
+                            Some(&token),
+                            true,
+                        )?;
+                        self.compile_expression_list()?;
+                        self.eat_keyword_or_symbol(
+                            vec![Token::Symbol {
+                                symbol: Symbol::RParen,
+                            }],
+                            None,
+                            true,
+                        )?;
+                        self.add_xml_event("-term");
+                        return Ok(());
+                    }
+                    Symbol::Period => {
+                        self.eat_class_or_subroutine_use_identifier(
+                            IdentifierCategory::Class,
+                            Some(&initial_identifier),
+                        )?;
+                        self.eat_keyword_or_symbol(
+                            vec![Token::Symbol {
+                                symbol: Symbol::Period,
+                            }],
+                            Some(&token),
+                            true,
+                        )?;
+                        self.eat_class_or_subroutine_use_identifier(
+                            IdentifierCategory::Subroutine,
+                            None,
+                        )?;
+                        self.eat_keyword_or_symbol(
+                            vec![Token::Symbol {
+                                symbol: Symbol::LParen,
+                            }],
+                            None,
+                            true,
+                        )?;
+                        self.compile_expression_list()?;
+                        self.eat_keyword_or_symbol(
+                            vec![Token::Symbol {
+                                symbol: Symbol::RParen,
+                            }],
+                            None,
+                            true,
+                        )?;
+                        self.add_xml_event("-term");
+                        return Ok(());
+                    }
+                    _ => panic!("Eating a LParen or Period returned: {:?}", symbol),
+                },
+                _ => panic!("Eating a Symbol returned: {:?}", token),
+            },
+            Err(_) => {
+                // If it's not an array index or a subroutine call, it is a variable.
+                self.eat_variable_use_identifier(Some(&initial_identifier))?;
+            }
         }
 
-        // If it's not an array index or a subroutine call, it is a variable.
-        // We've already eaten the identifier so we can return now.
         self.add_xml_event("-term");
         Ok(())
     }
@@ -791,9 +1082,13 @@ impl CompilationEngine {
 
         if self.current_token_begins_term() {
             self.compile_expression()?;
-            while let Ok(_) = self.eat_keyword_or_symbol(vec![Token::Symbol {
-                symbol: Symbol::Comma,
-            }]) {
+            while let Ok(_) = self.eat_keyword_or_symbol(
+                vec![Token::Symbol {
+                    symbol: Symbol::Comma,
+                }],
+                None,
+                true,
+            ) {
                 self.compile_expression()?;
             }
         }

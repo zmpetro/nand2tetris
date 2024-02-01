@@ -1,4 +1,4 @@
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Keyword {
     Class,
     Constructor,
@@ -51,7 +51,7 @@ impl Keyword {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Symbol {
     LCurly,
     RCurly,
@@ -100,7 +100,7 @@ impl Symbol {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Token {
     Keyword { keyword: Keyword },
     Symbol { symbol: Symbol },

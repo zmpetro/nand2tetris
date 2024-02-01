@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Kind {
     Static,
     Field,
@@ -9,7 +9,7 @@ pub enum Kind {
 }
 
 #[derive(Debug)]
-struct Entry {
+pub struct Entry {
     type_: String,
     kind: Kind,
     index: usize,
