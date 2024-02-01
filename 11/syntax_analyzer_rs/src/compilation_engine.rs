@@ -1,6 +1,38 @@
 use crate::symbol_table::{Kind, SymbolTable};
 use crate::tokenizer::{Keyword, Symbol, Token, Tokenizer};
 
+enum IdentifierCategory {
+    Class,
+    Subroutine,
+}
+
+fn keyword_to_kind(token: &Token) -> Kind {
+    // Utility function to convert a Token Keyword of type Static, Field, or
+    // Var to its respective Kind
+    match token {
+        Token::Keyword { keyword } => match keyword {
+            Keyword::Static => Kind::Static,
+            Keyword::Field => Kind::Field,
+            Keyword::Var => Kind::Var,
+            _ => panic!("Failed to convert Keyword {:?} to Kind", keyword),
+        },
+        _ => panic!("Failed to convert Token {:?} to Kind", token),
+    }
+}
+
+fn type_to_string(token: &Token) -> String {
+    // Utility function to convert a Token of type Keyword:Int, Keyword:Char,
+    // Keyword:Boolean, or Identifier to its corresponding String.
+    match token {
+        Token::Keyword { keyword } => match keyword {
+            Keyword::Int | Keyword::Char | Keyword::Boolean => keyword.to_string().to_owned(),
+            _ => panic!("Failed to convert Keyword {:?} to String", keyword),
+        },
+        Token::Identifier { literal } => literal.to_owned(),
+        _ => panic!("Failed to convert Token {:?} to String", token),
+    }
+}
+
 pub struct CompilationEngine {
     symbol_table: SymbolTable,
     tokenizer: Tokenizer,
@@ -25,13 +57,13 @@ impl CompilationEngine {
         self.result.extend(events);
     }
 
-    fn eat_keyword_or_symbol(&mut self, expected_tokens: Vec<Token>) -> Result<(), String> {
+    fn eat_keyword_or_symbol(&mut self, expected_tokens: Vec<Token>) -> Result<&Token, String> {
         // Checks if the current token is one of the expected tokens (keywords or symbols).
         let current_token = self.tokenizer.current_token.as_ref().unwrap();
         if expected_tokens.contains(current_token) {
             self.add_xml_events(current_token.to_xml_events());
             self.tokenizer.advance();
-            return Ok(());
+            return Ok(current_token);
         } else {
             return Err(format!(
                 "current_token: {:?}  expected_token: {:?}",
@@ -68,7 +100,50 @@ impl CompilationEngine {
         }
     }
 
-    fn eat_identifier(&mut self) -> Result<(), String> {
+    fn eat_class_or_subroutine_definition_identifier(
+        &mut self,
+        category: IdentifierCategory,
+    ) -> Result<(), String> {
+        let current_token = self.tokenizer.current_token.as_ref().unwrap();
+        if let Token::Identifier { .. } = current_token {
+            self.add_xml_events(current_token.to_xml_events());
+            self.tokenizer.advance();
+            return Ok(());
+        } else {
+            return Err(format!("Token is not an Identifier: {:?}", current_token));
+        }
+    }
+
+    fn eat_class_or_subroutine_use_identifier(
+        &mut self,
+        category: IdentifierCategory,
+    ) -> Result<&Token, String> {
+        let current_token = self.tokenizer.current_token.as_ref().unwrap();
+        if let Token::Identifier { .. } = current_token {
+            self.add_xml_events(current_token.to_xml_events());
+            self.tokenizer.advance();
+            return Ok(current_token);
+        } else {
+            return Err(format!("Token is not an Identifier: {:?}", current_token));
+        }
+    }
+
+    fn eat_variable_definition_identifier(
+        &mut self,
+        category: Kind,
+        type_: String,
+    ) -> Result<(), String> {
+        let current_token = self.tokenizer.current_token.as_ref().unwrap();
+        if let Token::Identifier { .. } = current_token {
+            self.add_xml_events(current_token.to_xml_events());
+            self.tokenizer.advance();
+            return Ok(());
+        } else {
+            return Err(format!("Token is not an Identifier: {:?}", current_token));
+        }
+    }
+
+    fn eat_variable_use_identifier(&mut self) -> Result<(), String> {
         let current_token = self.tokenizer.current_token.as_ref().unwrap();
         if let Token::Identifier { .. } = current_token {
             self.add_xml_events(current_token.to_xml_events());
@@ -90,7 +165,7 @@ impl CompilationEngine {
         self.eat_keyword_or_symbol(vec![Token::Keyword {
             keyword: Keyword::Class,
         }])?;
-        self.eat_identifier()?;
+        self.eat_class_or_subroutine_definition_identifier(IdentifierCategory::Class)?;
         self.eat_keyword_or_symbol(vec![Token::Symbol {
             symbol: Symbol::LCurly,
         }])?;
@@ -110,8 +185,8 @@ impl CompilationEngine {
         Ok(())
     }
 
-    fn eat_type(&mut self) -> Result<(), String> {
-        let res = self.eat_keyword_or_symbol(vec![
+    fn eat_type(&mut self) -> Result<&Token, String> {
+        let mut res = self.eat_keyword_or_symbol(vec![
             Token::Keyword {
                 keyword: Keyword::Int,
             },
@@ -124,7 +199,7 @@ impl CompilationEngine {
         ]);
         if res.is_err() {
             // Couldn't eat int, char, or boolean. Attempt to eat className
-            let res = self.eat_identifier();
+            res = self.eat_class_or_subroutine_use_identifier(IdentifierCategory::Class);
             if res.is_err() {
                 return Err(format!(
                     "current_token: {:?}  expected_token: type",
@@ -132,14 +207,14 @@ impl CompilationEngine {
                 ));
             }
         }
-        Ok(())
+        res
     }
 
     fn compile_class_var_dec(&mut self) -> Result<(), String> {
         // Compiles a static variable declaration, or a field declaration.
         self.add_xml_event("+classVarDec");
 
-        self.eat_keyword_or_symbol(vec![
+        let static_or_field = self.eat_keyword_or_symbol(vec![
             Token::Keyword {
                 keyword: Keyword::Static,
             },
@@ -147,12 +222,14 @@ impl CompilationEngine {
                 keyword: Keyword::Field,
             },
         ])?;
-        self.eat_type()?;
-        self.eat_identifier()?;
-        while let Ok(()) = self.eat_keyword_or_symbol(vec![Token::Symbol {
+        let kind = keyword_to_kind(static_or_field);
+        let type_ = self.eat_type()?;
+        let type_ = type_to_string(type_);
+        self.eat_variable_definition_identifier(kind, type_)?;
+        while let Ok(_) = self.eat_keyword_or_symbol(vec![Token::Symbol {
             symbol: Symbol::Comma,
         }]) {
-            self.eat_identifier()?;
+            self.eat_variable_definition_identifier(kind, type_)?;
         }
         self.eat_keyword_or_symbol(vec![Token::Symbol {
             symbol: Symbol::Semicolon,
@@ -199,7 +276,7 @@ impl CompilationEngine {
                 keyword: Keyword::Void,
             }])?;
         }
-        self.eat_identifier()?;
+        self.eat_class_or_subroutine_definition_identifier(IdentifierCategory::Subroutine)?;
         self.eat_keyword_or_symbol(vec![Token::Symbol {
             symbol: Symbol::LParen,
         }])?;
@@ -237,13 +314,15 @@ impl CompilationEngine {
         self.add_xml_event("+parameterList");
 
         let res = self.eat_type();
-        if res.is_ok() {
-            self.eat_identifier()?;
-            while let Ok(()) = self.eat_keyword_or_symbol(vec![Token::Symbol {
+        if let Ok(token) = res {
+            let type_ = type_to_string(token);
+            self.eat_variable_definition_identifier(Kind::Arg, type_)?;
+            while let Ok(_) = self.eat_keyword_or_symbol(vec![Token::Symbol {
                 symbol: Symbol::Comma,
             }]) {
-                self.eat_type()?;
-                self.eat_identifier()?;
+                let type_ = self.eat_type()?;
+                let type_ = type_to_string(type_);
+                self.eat_variable_definition_identifier(Kind::Arg, type_)?;
             }
         }
 
@@ -275,12 +354,13 @@ impl CompilationEngine {
         self.eat_keyword_or_symbol(vec![Token::Keyword {
             keyword: Keyword::Var,
         }])?;
-        self.eat_type()?;
-        self.eat_identifier()?;
-        while let Ok(()) = self.eat_keyword_or_symbol(vec![Token::Symbol {
+        let type_ = self.eat_type()?;
+        let type_ = type_to_string(type_);
+        self.eat_variable_definition_identifier(Kind::Var, type_)?;
+        while let Ok(_) = self.eat_keyword_or_symbol(vec![Token::Symbol {
             symbol: Symbol::Comma,
         }]) {
-            self.eat_identifier()?;
+            self.eat_variable_definition_identifier(Kind::Var, type_)?;
         }
         self.eat_keyword_or_symbol(vec![Token::Symbol {
             symbol: Symbol::Semicolon,
@@ -333,7 +413,7 @@ impl CompilationEngine {
         self.eat_keyword_or_symbol(vec![Token::Keyword {
             keyword: Keyword::Let,
         }])?;
-        self.eat_identifier()?;
+        self.eat_variable_use_identifier()?;
         let res = self.eat_keyword_or_symbol(vec![Token::Symbol {
             symbol: Symbol::Equals,
         }]);
@@ -480,7 +560,7 @@ impl CompilationEngine {
         self.add_xml_event("+expression");
 
         self.compile_term()?;
-        while let Ok(()) = self.eat_keyword_or_symbol(vec![
+        while let Ok(_) = self.eat_keyword_or_symbol(vec![
             Token::Symbol {
                 symbol: Symbol::Plus,
             },
@@ -677,7 +757,7 @@ impl CompilationEngine {
 
         if self.current_token_begins_term() {
             self.compile_expression()?;
-            while let Ok(()) = self.eat_keyword_or_symbol(vec![Token::Symbol {
+            while let Ok(_) = self.eat_keyword_or_symbol(vec![Token::Symbol {
                 symbol: Symbol::Comma,
             }]) {
                 self.compile_expression()?;
