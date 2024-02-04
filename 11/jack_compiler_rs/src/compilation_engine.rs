@@ -99,6 +99,7 @@ pub struct CompilationEngine {
     symbol_table: SymbolTable,
     tokenizer: Tokenizer,
     pub vm_writer: VMWriter,
+    class_name: String,
 }
 
 impl CompilationEngine {
@@ -107,17 +108,13 @@ impl CompilationEngine {
             symbol_table: SymbolTable::new(),
             tokenizer: tokenizer,
             vm_writer: VMWriter::new(),
+            class_name: String::from(""),
         }
     }
 
-    fn add_xml_event<Event: Into<String>>(&mut self, event: Event) {
-        let event = event.into();
-        self.vm_writer.result.push(event);
-    }
+    fn add_xml_event<Event: Into<String>>(&mut self, event: Event) {}
 
-    fn add_xml_events(&mut self, events: Vec<String>) {
-        self.vm_writer.result.extend(events);
-    }
+    fn add_xml_events(&mut self, events: Vec<String>) {}
 
     fn eat_keyword_or_symbol(
         &mut self,
@@ -171,22 +168,6 @@ impl CompilationEngine {
                 "Token is not an StringConstant: {:?}",
                 current_token
             ));
-        }
-    }
-
-    fn eat_class_or_subroutine_definition_identifier(
-        &mut self,
-        category: IdentifierCategory,
-    ) -> Result<(), String> {
-        let current_token = self.tokenizer.current_token.as_ref().unwrap();
-        if let Token::Identifier { literal } = current_token {
-            self.add_xml_events(get_class_or_subroutine_identifier_code(
-                literal, category, true,
-            ));
-            self.tokenizer.advance();
-            return Ok(());
-        } else {
-            return Err(format!("Token is not an Identifier: {:?}", current_token));
         }
     }
 
@@ -292,7 +273,10 @@ impl CompilationEngine {
             None,
             true,
         )?;
-        self.eat_class_or_subroutine_definition_identifier(IdentifierCategory::Class)?;
+        let class_name = self.eat_identifier_without_writing_code()?;
+        if let Token::Identifier { literal } = class_name {
+            self.class_name = literal;
+        }
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::LCurly,
@@ -408,7 +392,7 @@ impl CompilationEngine {
 
         self.symbol_table.start_subroutine();
 
-        self.eat_keyword_or_symbol(
+        let subroutine_type = self.eat_keyword_or_symbol(
             vec![
                 Token::Keyword {
                     keyword: Keyword::Constructor,
@@ -423,8 +407,8 @@ impl CompilationEngine {
             None,
             true,
         )?;
-        let res = self.eat_type();
-        if res.is_err() {
+        let return_type = self.eat_type();
+        if return_type.is_err() {
             self.eat_keyword_or_symbol(
                 vec![Token::Keyword {
                     keyword: Keyword::Void,
@@ -433,7 +417,7 @@ impl CompilationEngine {
                 true,
             )?;
         }
-        self.eat_class_or_subroutine_definition_identifier(IdentifierCategory::Subroutine)?;
+        let subroutine_name = self.eat_identifier_without_writing_code()?;
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::LParen,
@@ -449,7 +433,7 @@ impl CompilationEngine {
             None,
             true,
         )?;
-        self.compile_subroutine_body()?;
+        self.compile_subroutine_body(subroutine_type, return_type, subroutine_name)?;
 
         self.add_xml_event("-subroutineDec");
         Ok(())
@@ -499,7 +483,12 @@ impl CompilationEngine {
         Ok(())
     }
 
-    fn compile_subroutine_body(&mut self) -> Result<(), String> {
+    fn compile_subroutine_body(
+        &mut self,
+        subroutine_type: Token,
+        return_type: Result<Token, String>,
+        subroutine_name: Token,
+    ) -> Result<(), String> {
         // Compiles a subroutine's body.
         self.add_xml_event("+subroutineBody");
 
@@ -510,7 +499,14 @@ impl CompilationEngine {
             None,
             true,
         )?;
+
         self.compile_all_var_dec()?;
+        if let Token::Identifier { literal } = subroutine_name {
+            let function_name = format!("{}.{}", self.class_name, literal);
+            self.vm_writer
+                .write_function(function_name, self.symbol_table.subroutine_index_var);
+        }
+
         self.compile_statements()?;
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {

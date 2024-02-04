@@ -37,7 +37,7 @@ pub struct SymbolTable {
     subroutine_index_static: usize,
     subroutine_index_field: usize,
     subroutine_index_arg: usize,
-    subroutine_index_var: usize,
+    pub subroutine_index_var: usize,
 }
 
 impl SymbolTable {
