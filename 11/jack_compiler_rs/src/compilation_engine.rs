@@ -1,5 +1,6 @@
 use crate::symbol_table::{Kind, SymbolTable};
 use crate::tokenizer::{Keyword, Symbol, Token, Tokenizer};
+use crate::vm_writer::{MathInstr, MemorySegment, VMWriter};
 
 enum IdentifierCategory {
     Class,
@@ -97,7 +98,7 @@ fn get_variable_identifier_code(
 pub struct CompilationEngine {
     symbol_table: SymbolTable,
     tokenizer: Tokenizer,
-    pub result: Vec<String>,
+    pub vm_writer: VMWriter,
 }
 
 impl CompilationEngine {
@@ -105,17 +106,17 @@ impl CompilationEngine {
         Self {
             symbol_table: SymbolTable::new(),
             tokenizer: tokenizer,
-            result: vec![],
+            vm_writer: VMWriter::new(),
         }
     }
 
     fn add_xml_event<Event: Into<String>>(&mut self, event: Event) {
         let event = event.into();
-        self.result.push(event);
+        self.vm_writer.result.push(event);
     }
 
     fn add_xml_events(&mut self, events: Vec<String>) {
-        self.result.extend(events);
+        self.vm_writer.result.extend(events);
     }
 
     fn eat_keyword_or_symbol(

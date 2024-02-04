@@ -18,7 +18,7 @@ pub fn compile_file(infile: &Path) -> Vec<String> {
     compilation_engine
         .compile_class()
         .expect("Compilation failed");
-    compilation_engine.result
+    compilation_engine.vm_writer.result
 }
 
 pub fn write_lines(outfile: &PathBuf, vm_output: &[String]) {

@@ -1,4 +1,4 @@
-enum MemorySegment {
+pub enum MemorySegment {
     Local,
     Argument,
     This,
@@ -24,7 +24,7 @@ impl MemorySegment {
     }
 }
 
-enum MathInstr {
+pub enum MathInstr {
     Add,
     Sub,
     Neg,
