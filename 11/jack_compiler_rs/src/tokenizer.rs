@@ -104,7 +104,7 @@ impl Symbol {
 pub enum Token {
     Keyword { keyword: Keyword },
     Symbol { symbol: Symbol },
-    IntegerConstant { value: u16 },
+    IntegerConstant { value: usize },
     StringConstant { literal: String },
     Identifier { literal: String },
 }
@@ -259,7 +259,7 @@ impl Tokenizer {
         }
     }
 
-    fn get_integer_constant(&self) -> Option<u16> {
+    fn get_integer_constant(&self) -> Option<usize> {
         let mut integer: Vec<u8> = vec![];
         let mut cur_index = self.index;
         while let Some(&char) = self.source.get(cur_index) {
@@ -274,7 +274,7 @@ impl Tokenizer {
             return None;
         } else {
             let integer_str = String::from_utf8(integer).unwrap();
-            let parsed_integer: Result<u16, _> = integer_str.parse();
+            let parsed_integer: Result<usize, _> = integer_str.parse();
             return Some(parsed_integer.unwrap());
         }
     }

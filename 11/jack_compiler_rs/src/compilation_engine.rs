@@ -2,6 +2,8 @@ use crate::symbol_table::{Kind, SymbolTable};
 use crate::tokenizer::{Keyword, Symbol, Token, Tokenizer};
 use crate::vm_writer::{MathInstr, MemorySegment, VMWriter};
 
+const MULTIPLY_FN: &str = "Math.multiply";
+
 enum IdentifierCategory {
     Class,
     Subroutine,
@@ -143,12 +145,12 @@ impl CompilationEngine {
         }
     }
 
-    fn eat_integer(&mut self) -> Result<(), String> {
-        let current_token = self.tokenizer.current_token.as_ref().unwrap();
+    fn eat_integer(&mut self) -> Result<Token, String> {
+        let current_token = self.tokenizer.current_token.as_ref().unwrap().clone();
         if let Token::IntegerConstant { .. } = current_token {
             self.add_xml_events(current_token.to_xml_events());
             self.tokenizer.advance();
-            return Ok(());
+            return Ok(current_token);
         } else {
             return Err(format!(
                 "Token is not an IntegerConstant: {:?}",
@@ -898,7 +900,7 @@ impl CompilationEngine {
         self.add_xml_event("+expression");
 
         self.compile_term()?;
-        while let Ok(_) = self.eat_keyword_or_symbol(
+        while let Ok(op) = self.eat_keyword_or_symbol(
             vec![
                 Token::Symbol {
                     symbol: Symbol::Plus,
@@ -932,6 +934,19 @@ impl CompilationEngine {
             true,
         ) {
             self.compile_term()?;
+            match op {
+                Token::Symbol { symbol } => match symbol {
+                    Symbol::Plus => self.vm_writer.write_arithmetic(MathInstr::Add),
+                    Symbol::Minus => self.vm_writer.write_arithmetic(MathInstr::Sub),
+                    Symbol::Asterisk => self.vm_writer.write_call(String::from(MULTIPLY_FN), 2),
+                    Symbol::Ampersand => self.vm_writer.write_arithmetic(MathInstr::And),
+                    Symbol::Pipe => self.vm_writer.write_arithmetic(MathInstr::Or),
+                    Symbol::LessThan => self.vm_writer.write_arithmetic(MathInstr::Lt),
+                    Symbol::GreaterThan => self.vm_writer.write_arithmetic(MathInstr::Gt),
+                    _ => panic!("Op Symbol in expression is not implemented: {:?}", symbol),
+                },
+                _ => panic!("Op in expression is not a Symbol: {:?}", op),
+            }
         }
 
         self.add_xml_event("-expression");
@@ -991,7 +1006,8 @@ impl CompilationEngine {
 
         // Second, attempt to eat either integerConstant or stringConstant.
         let res = self.eat_integer();
-        if res.is_ok() {
+        if let Ok(Token::IntegerConstant { value }) = res {
+            self.vm_writer.write_push(MemorySegment::Constant, value);
             self.add_xml_event("-term");
             return Ok(());
         }
