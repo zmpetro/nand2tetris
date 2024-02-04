@@ -409,16 +409,19 @@ impl CompilationEngine {
             None,
             true,
         )?;
-        let return_type = self.eat_type();
-        if return_type.is_err() {
-            self.eat_keyword_or_symbol(
-                vec![Token::Keyword {
-                    keyword: Keyword::Void,
-                }],
-                None,
-                true,
-            )?;
-        }
+        let void_function = match self.eat_type() {
+            Ok(_) => false,
+            Err(_) => {
+                self.eat_keyword_or_symbol(
+                    vec![Token::Keyword {
+                        keyword: Keyword::Void,
+                    }],
+                    None,
+                    true,
+                )?;
+                true
+            }
+        };
         let subroutine_name = self.eat_identifier_without_writing_code()?;
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
@@ -435,7 +438,7 @@ impl CompilationEngine {
             None,
             true,
         )?;
-        self.compile_subroutine_body(subroutine_type, return_type, subroutine_name)?;
+        self.compile_subroutine_body(subroutine_type, subroutine_name, void_function)?;
 
         self.add_xml_event("-subroutineDec");
         Ok(())
@@ -488,8 +491,8 @@ impl CompilationEngine {
     fn compile_subroutine_body(
         &mut self,
         subroutine_type: Token,
-        return_type: Result<Token, String>,
         subroutine_name: Token,
+        void_function: bool,
     ) -> Result<(), String> {
         // Compiles a subroutine's body.
         self.add_xml_event("+subroutineBody");
@@ -509,7 +512,7 @@ impl CompilationEngine {
                 .write_function(function_name, self.symbol_table.subroutine_index_var);
         }
 
-        self.compile_statements()?;
+        self.compile_statements(void_function)?;
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::RCurly,
@@ -569,7 +572,7 @@ impl CompilationEngine {
         Ok(())
     }
 
-    fn compile_statements(&mut self) -> Result<(), String> {
+    fn compile_statements(&mut self, void_function: bool) -> Result<(), String> {
         // Compiles a sequence of statments. Does not handle the enclosing "{}".
         self.add_xml_event("+statements");
 
@@ -579,10 +582,10 @@ impl CompilationEngine {
             match current_token {
                 Token::Keyword { keyword } => match keyword {
                     Keyword::Let => self.compile_let()?,
-                    Keyword::If => self.compile_if()?,
-                    Keyword::While => self.compile_while()?,
+                    Keyword::If => self.compile_if(void_function)?,
+                    Keyword::While => self.compile_while(void_function)?,
                     Keyword::Do => self.compile_do()?,
-                    Keyword::Return => self.compile_return()?,
+                    Keyword::Return => self.compile_return(void_function)?,
                     _ => statements_left = false,
                 },
                 _ => statements_left = false,
@@ -649,7 +652,7 @@ impl CompilationEngine {
         Ok(())
     }
 
-    fn compile_if(&mut self) -> Result<(), String> {
+    fn compile_if(&mut self, void_function: bool) -> Result<(), String> {
         // Compiles an if statement, possibly with a trailing `else` clause.
         self.add_xml_event("+ifStatement");
 
@@ -682,7 +685,7 @@ impl CompilationEngine {
             None,
             true,
         )?;
-        self.compile_statements()?;
+        self.compile_statements(void_function)?;
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::RCurly,
@@ -705,7 +708,7 @@ impl CompilationEngine {
                 None,
                 true,
             )?;
-            self.compile_statements()?;
+            self.compile_statements(void_function)?;
             self.eat_keyword_or_symbol(
                 vec![Token::Symbol {
                     symbol: Symbol::RCurly,
@@ -719,7 +722,7 @@ impl CompilationEngine {
         Ok(())
     }
 
-    fn compile_while(&mut self) -> Result<(), String> {
+    fn compile_while(&mut self, void_function: bool) -> Result<(), String> {
         // Compiles a while statement.
         self.add_xml_event("+whileStatement");
 
@@ -752,7 +755,7 @@ impl CompilationEngine {
             None,
             true,
         )?;
-        self.compile_statements()?;
+        self.compile_statements(void_function)?;
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::RCurly,
@@ -842,6 +845,9 @@ impl CompilationEngine {
 
         let num_args = self.compile_expression_list()?;
         self.vm_writer.write_call(subroutine_name, num_args);
+        // Since we are calling a void function, we need to pop the return
+        // value off the stack
+        self.vm_writer.write_pop(MemorySegment::Temp, 0);
 
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
@@ -862,7 +868,7 @@ impl CompilationEngine {
         Ok(())
     }
 
-    fn compile_return(&mut self) -> Result<(), String> {
+    fn compile_return(&mut self, void_function: bool) -> Result<(), String> {
         // Compiles a return statement.
         self.add_xml_event("+returnStatement");
 
@@ -890,6 +896,14 @@ impl CompilationEngine {
                 true,
             )?;
         }
+
+        // If the function's return type is void, we need to push a default
+        // return value to the stack according to the function call-and-return
+        // contract.
+        if void_function {
+            self.vm_writer.write_push(MemorySegment::Constant, 0);
+        }
+        self.vm_writer.write_return();
 
         self.add_xml_event("-returnStatement");
         Ok(())
