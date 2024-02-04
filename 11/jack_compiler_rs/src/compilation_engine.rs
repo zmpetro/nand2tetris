@@ -994,6 +994,14 @@ impl CompilationEngine {
         );
         if res.is_ok() {
             self.compile_term()?;
+            match res {
+                Ok(Token::Symbol { symbol }) => match symbol {
+                    Symbol::Minus => self.vm_writer.write_arithmetic(MathInstr::Neg),
+                    Symbol::Tilde => self.vm_writer.write_arithmetic(MathInstr::Not),
+                    _ => panic!("UnaryOp is not neg or not: {:?}", symbol),
+                },
+                _ => panic!("UnaryOp is not Symbol: {:?}", res),
+            }
             self.add_xml_event("-term");
             return Ok(());
         }
