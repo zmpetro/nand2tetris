@@ -938,7 +938,7 @@ impl CompilationEngine {
                 Token::Symbol { symbol } => match symbol {
                     Symbol::Plus => self.vm_writer.write_arithmetic(MathInstr::Add),
                     Symbol::Minus => self.vm_writer.write_arithmetic(MathInstr::Sub),
-                    Symbol::Asterisk => self.vm_writer.write_call(String::from(MULTIPLY_FN), 2),
+                    Symbol::Asterisk => self.vm_writer.write_call(MULTIPLY_FN.into(), 2),
                     Symbol::Ampersand => self.vm_writer.write_arithmetic(MathInstr::And),
                     Symbol::Pipe => self.vm_writer.write_arithmetic(MathInstr::Or),
                     Symbol::LessThan => self.vm_writer.write_arithmetic(MathInstr::Lt),
