@@ -838,8 +838,8 @@ impl CompilationEngine {
             }
         };
 
-        self.compile_expression_list()?;
-        self.vm_writer.write_call(subroutine_name, 0);
+        let num_args = self.compile_expression_list()?;
+        self.vm_writer.write_call(subroutine_name, num_args);
 
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
@@ -1178,12 +1178,15 @@ impl CompilationEngine {
         };
     }
 
-    fn compile_expression_list(&mut self) -> Result<(), String> {
+    fn compile_expression_list(&mut self) -> Result<usize, String> {
         // Compiles a (possibly empty) comma-separated list of expressions.
+        // Returns the number of comma-separated expressions.
         self.add_xml_event("+expressionList");
 
+        let mut num_expressions: usize = 0;
         if self.current_token_begins_term() {
             self.compile_expression()?;
+            num_expressions += 1;
             while let Ok(_) = self.eat_keyword_or_symbol(
                 vec![Token::Symbol {
                     symbol: Symbol::Comma,
@@ -1192,10 +1195,11 @@ impl CompilationEngine {
                 true,
             ) {
                 self.compile_expression()?;
+                num_expressions += 1;
             }
         }
 
         self.add_xml_event("-expressionList");
-        Ok(())
+        Ok(num_expressions)
     }
 }
