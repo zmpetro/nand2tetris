@@ -782,7 +782,7 @@ impl CompilationEngine {
             None,
             false,
         );
-        match left_paren {
+        let subroutine_name = match left_paren {
             Ok(token) => {
                 self.eat_class_or_subroutine_use_identifier(
                     IdentifierCategory::Subroutine,
@@ -795,6 +795,13 @@ impl CompilationEngine {
                     Some(&token),
                     true,
                 )?;
+                match initial_identifier {
+                    Token::Identifier { literal } => literal,
+                    _ => panic!(
+                        "Subroutine name is not identifier: {:?}",
+                        initial_identifier
+                    ),
+                }
             }
             Err(_) => {
                 self.eat_class_or_subroutine_use_identifier(
@@ -808,7 +815,8 @@ impl CompilationEngine {
                     None,
                     true,
                 )?;
-                self.eat_class_or_subroutine_use_identifier(IdentifierCategory::Subroutine, None)?;
+                let second_identifier = self
+                    .eat_class_or_subroutine_use_identifier(IdentifierCategory::Subroutine, None)?;
                 self.eat_keyword_or_symbol(
                     vec![Token::Symbol {
                         symbol: Symbol::LParen,
@@ -816,9 +824,23 @@ impl CompilationEngine {
                     None,
                     true,
                 )?;
+                match initial_identifier {
+                    Token::Identifier {
+                        literal: class_name,
+                    } => match second_identifier {
+                        Token::Identifier { literal: func_name } => {
+                            format!("{}.{}", class_name, func_name)
+                        }
+                        _ => panic!("Subroutine name is not identifier: {:?}", second_identifier),
+                    },
+                    _ => panic!("Class name is not identifier: {:?}", initial_identifier),
+                }
             }
         };
+
         self.compile_expression_list()?;
+        self.vm_writer.write_call(subroutine_name, 0);
+
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::RParen,
