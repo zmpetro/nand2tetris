@@ -6,6 +6,15 @@ enum IdentifierCategory {
     Subroutine,
 }
 
+impl IdentifierCategory {
+    fn to_string(&self) -> String {
+        match self {
+            IdentifierCategory::Class => String::from("class"),
+            IdentifierCategory::Subroutine => String::from("subroutine"),
+        }
+    }
+}
+
 fn keyword_to_kind(token: &Token) -> Kind {
     // Utility function to convert a Token Keyword of type Static, Field, or
     // Var to its respective Kind
@@ -31,6 +40,58 @@ fn type_to_string(token: &Token) -> String {
         Token::Identifier { literal } => literal.to_owned(),
         _ => panic!("Failed to convert Token {:?} to String", token),
     }
+}
+
+fn get_class_or_subroutine_identifier_code(
+    name: &str,
+    category: IdentifierCategory,
+    being_defined: bool,
+) -> Vec<String> {
+    let mut code: Vec<String> = vec![];
+    code.push(String::from("+identifier"));
+    code.push(String::from("+name"));
+    code.push(format!(" {} ", name));
+    code.push(String::from("-name"));
+    code.push(String::from("+category"));
+    code.push(format!(" {} ", category.to_string()));
+    code.push(String::from("-category"));
+    code.push(String::from("+being_defined"));
+    if being_defined {
+        code.push(String::from(" true "));
+    } else {
+        code.push(String::from(" false "));
+    }
+    code.push(String::from("-being_defined"));
+    code.push(String::from("-identifier"));
+    code
+}
+
+fn get_variable_identifier_code(
+    name: &str,
+    category: Kind,
+    being_defined: bool,
+    index: usize,
+) -> Vec<String> {
+    let mut code: Vec<String> = vec![];
+    code.push(String::from("+identifier"));
+    code.push(String::from("+name"));
+    code.push(format!(" {} ", name));
+    code.push(String::from("-name"));
+    code.push(String::from("+category"));
+    code.push(format!(" {} ", category.to_string()));
+    code.push(String::from("-category"));
+    code.push(String::from("+being_defined"));
+    if being_defined {
+        code.push(String::from(" true "));
+    } else {
+        code.push(String::from(" false "));
+    }
+    code.push(String::from("-being_defined"));
+    code.push(String::from("+index"));
+    code.push(format!(" {} ", index));
+    code.push(String::from("-index"));
+    code.push(String::from("-identifier"));
+    code
 }
 
 pub struct CompilationEngine {
@@ -117,8 +178,10 @@ impl CompilationEngine {
         category: IdentifierCategory,
     ) -> Result<(), String> {
         let current_token = self.tokenizer.current_token.as_ref().unwrap();
-        if let Token::Identifier { .. } = current_token {
-            self.add_xml_events(current_token.to_xml_events());
+        if let Token::Identifier { literal } = current_token {
+            self.add_xml_events(get_class_or_subroutine_identifier_code(
+                literal, category, true,
+            ));
             self.tokenizer.advance();
             return Ok(());
         } else {
@@ -136,8 +199,10 @@ impl CompilationEngine {
             None => self.tokenizer.current_token.as_ref().unwrap(),
         }
         .clone();
-        if let Token::Identifier { .. } = current_token {
-            self.add_xml_events(current_token.to_xml_events());
+        if let Token::Identifier { ref literal } = current_token {
+            self.add_xml_events(get_class_or_subroutine_identifier_code(
+                literal, category, false,
+            ));
             if predefined_token.is_none() {
                 self.tokenizer.advance();
             }
@@ -153,8 +218,19 @@ impl CompilationEngine {
         type_: String,
     ) -> Result<(), String> {
         let current_token = self.tokenizer.current_token.as_ref().unwrap();
-        if let Token::Identifier { .. } = current_token {
-            self.add_xml_events(current_token.to_xml_events());
+        if let Token::Identifier { literal } = current_token {
+            self.symbol_table
+                .define(literal.to_owned(), type_, category.clone());
+            let symbol = self.symbol_table.get_entry(literal);
+            match symbol {
+                Some(entry) => self.add_xml_events(get_variable_identifier_code(
+                    literal,
+                    category,
+                    true,
+                    entry.index,
+                )),
+                None => panic!("Def: Couldn't find \"{}\" in symbol table", literal),
+            }
             self.tokenizer.advance();
             return Ok(());
         } else {
@@ -170,8 +246,17 @@ impl CompilationEngine {
             Some(token) => token,
             None => self.tokenizer.current_token.as_ref().unwrap(),
         };
-        if let Token::Identifier { .. } = current_token {
-            self.add_xml_events(current_token.to_xml_events());
+        if let Token::Identifier { literal } = current_token {
+            let symbol = self.symbol_table.get_entry(literal);
+            match symbol {
+                Some(entry) => self.add_xml_events(get_variable_identifier_code(
+                    literal,
+                    entry.kind.clone(),
+                    false,
+                    entry.index,
+                )),
+                None => panic!("Use: Couldn't find \"{}\" in symbol table", literal),
+            }
             if predefined_token.is_none() {
                 self.tokenizer.advance();
             }
@@ -227,8 +312,6 @@ impl CompilationEngine {
         self.add_xml_event("-class");
         self.add_xml_event("\n");
 
-        self.symbol_table
-            .define(String::from("zac"), String::from("int"), Kind::Field);
         println!("\n{:?}\n", self.symbol_table);
 
         Ok(())
@@ -323,6 +406,8 @@ impl CompilationEngine {
     fn compile_subroutine_dec(&mut self) -> Result<(), String> {
         // Compiles a complete method, function, or constructor.
         self.add_xml_event("+subroutineDec");
+
+        self.symbol_table.start_subroutine();
 
         self.eat_keyword_or_symbol(
             vec![
