@@ -1,6 +1,7 @@
 mod compilation_engine;
 mod symbol_table;
 mod tokenizer;
+mod vm_writer;
 
 use std::fs::read_to_string;
 use std::fs::write;
