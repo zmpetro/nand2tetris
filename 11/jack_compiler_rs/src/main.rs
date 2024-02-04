@@ -1,4 +1,4 @@
-use syntax_analyzer_rs::{analyze_file, write_lines};
+use jack_compiler_rs::{compile_file, write_lines};
 
 use std::env;
 use std::path::{Path, PathBuf};
@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
-        panic!("Usage: syntax_analyzer_rs <infile or directory>");
+        panic!("Usage: jack_compiler_rs <infile or directory>");
     }
     let infile_or_directory = Path::new(&args[1]);
     let mut files_to_analyze: Vec<PathBuf> = vec![];
@@ -23,16 +23,16 @@ fn main() {
         files_to_analyze.push(infile_or_directory.to_path_buf());
     };
     for infile in files_to_analyze {
-        let outfile = infile.with_extension("xml");
+        let outfile = infile.with_extension("vm");
         println!(
-            "Analzying {} and writing xml output to {} ...",
+            "Compiling {} and writing VM code output to {} ...",
             infile.to_str().unwrap(),
             outfile.to_str().unwrap()
         );
-        let xml_output = analyze_file(&infile);
+        let xml_output = compile_file(&infile);
         write_lines(&outfile, &xml_output);
         println!(
-            "Analysis successful; output written to {}",
+            "Compilation successful; output written to {}",
             outfile.to_str().unwrap()
         );
     }
