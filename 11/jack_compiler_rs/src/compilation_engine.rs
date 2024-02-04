@@ -957,6 +957,7 @@ impl CompilationEngine {
                     Symbol::Pipe => self.vm_writer.write_arithmetic(MathInstr::Or),
                     Symbol::LessThan => self.vm_writer.write_arithmetic(MathInstr::Lt),
                     Symbol::GreaterThan => self.vm_writer.write_arithmetic(MathInstr::Gt),
+                    Symbol::Equals => self.vm_writer.write_arithmetic(MathInstr::Eq),
                     _ => panic!("Op Symbol in expression is not implemented: {:?}", symbol),
                 },
                 _ => panic!("Op in expression is not a Symbol: {:?}", op),
