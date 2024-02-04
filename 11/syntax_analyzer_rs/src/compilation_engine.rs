@@ -312,8 +312,6 @@ impl CompilationEngine {
         self.add_xml_event("-class");
         self.add_xml_event("\n");
 
-        println!("\n{:?}\n", self.symbol_table);
-
         Ok(())
     }
 
