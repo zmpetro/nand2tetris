@@ -6,6 +6,8 @@ mod tests {
     use std::env;
     use std::path::PathBuf;
 
+    use pretty_assertions::assert_eq;
+
     fn compile_jack_and_compare(jack_infile: &PathBuf, vm_comparison_file: &PathBuf) {
         let vm_comparison = read_infile(&vm_comparison_file);
         let mut compilation_result = compile_file(&jack_infile).join("\n");
