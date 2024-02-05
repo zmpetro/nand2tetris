@@ -22,7 +22,9 @@ pub fn compile_file(infile: &Path) -> Vec<String> {
 }
 
 pub fn write_lines(outfile: &PathBuf, vm_output: &[String]) {
-    write(outfile, vm_output.join("\n")).expect(&format!(
+    let mut output_to_write = vm_output.join("\n");
+    output_to_write.push('\n');
+    write(outfile, output_to_write).expect(&format!(
         "Failed to write VM code output to {}",
         outfile.to_str().unwrap()
     ));
