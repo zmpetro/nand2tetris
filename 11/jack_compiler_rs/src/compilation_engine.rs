@@ -608,7 +608,9 @@ impl CompilationEngine {
             None,
             true,
         )?;
-        self.eat_variable_use_identifier(None)?;
+        let symbol = self.eat_variable_use_identifier(None)?;
+        let segment = kind_to_segment(&symbol.kind);
+        let index = symbol.index;
         let res = self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::Equals,
@@ -641,6 +643,9 @@ impl CompilationEngine {
             )?;
         }
         self.compile_expression()?;
+
+        self.vm_writer.write_pop(segment, index);
+
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::Semicolon,
@@ -1078,6 +1083,18 @@ impl CompilationEngine {
             true,
         );
         if res.is_ok() {
+            match res {
+                Ok(Token::Keyword { keyword }) => match keyword {
+                    Keyword::True => {
+                        self.vm_writer.write_push(MemorySegment::Constant, 1);
+                        self.vm_writer.write_arithmetic(MathInstr::Neg);
+                    }
+                    Keyword::False => self.vm_writer.write_push(MemorySegment::Constant, 0),
+                    Keyword::Null => self.vm_writer.write_push(MemorySegment::Constant, 0),
+                    _ => return Err(format!("Keyword constant not implemented: {:?}", keyword)),
+                },
+                _ => return Err(format!("Keyword constant is not Keyword: {:?}", res)),
+            }
             self.add_xml_event("-term");
             return Ok(());
         }
