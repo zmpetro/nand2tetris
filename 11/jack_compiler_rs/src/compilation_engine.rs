@@ -1,4 +1,4 @@
-use crate::symbol_table::{Kind, SymbolTable};
+use crate::symbol_table::{Entry, Kind, SymbolTable};
 use crate::tokenizer::{Keyword, Symbol, Token, Tokenizer};
 use crate::vm_writer::{MathInstr, MemorySegment, VMWriter};
 
@@ -18,30 +18,30 @@ impl IdentifierCategory {
     }
 }
 
-fn keyword_to_kind(token: &Token) -> Kind {
+fn keyword_to_kind(token: &Token) -> Result<Kind, String> {
     // Utility function to convert a Token Keyword of type Static, Field, or
     // Var to its respective Kind
     match token {
         Token::Keyword { keyword } => match keyword {
-            Keyword::Static => Kind::Static,
-            Keyword::Field => Kind::Field,
-            Keyword::Var => Kind::Var,
-            _ => panic!("Failed to convert Keyword {:?} to Kind", keyword),
+            Keyword::Static => Ok(Kind::Static),
+            Keyword::Field => Ok(Kind::Field),
+            Keyword::Var => Ok(Kind::Var),
+            _ => Err(format!("Failed to convert Keyword {:?} to Kind", keyword)),
         },
-        _ => panic!("Failed to convert Token {:?} to Kind", token),
+        _ => Err(format!("Failed to convert Token {:?} to Kind", token)),
     }
 }
 
-fn type_to_string(token: &Token) -> String {
+fn type_to_string(token: &Token) -> Result<String, String> {
     // Utility function to convert a Token of type Keyword:Int, Keyword:Char,
     // Keyword:Boolean, or Identifier to its corresponding String.
     match token {
         Token::Keyword { keyword } => match keyword {
-            Keyword::Int | Keyword::Char | Keyword::Boolean => keyword.to_string().to_owned(),
-            _ => panic!("Failed to convert Keyword {:?} to String", keyword),
+            Keyword::Int | Keyword::Char | Keyword::Boolean => Ok(keyword.to_string().to_owned()),
+            _ => Err(format!("Failed to convert Keyword {:?} to String", keyword)),
         },
-        Token::Identifier { literal } => literal.to_owned(),
-        _ => panic!("Failed to convert Token {:?} to String", token),
+        Token::Identifier { literal } => Ok(literal.to_owned()),
+        _ => Err(format!("Failed to convert Token {:?} to String", token)),
     }
 }
 
@@ -202,51 +202,42 @@ impl CompilationEngine {
         type_: String,
     ) -> Result<(), String> {
         let current_token = self.tokenizer.current_token.as_ref().unwrap();
-        if let Token::Identifier { literal } = current_token {
-            self.symbol_table
-                .define(literal.to_owned(), type_, category.clone());
-            let symbol = self.symbol_table.get_entry(literal);
-            match symbol {
-                Some(entry) => self.add_xml_events(get_variable_identifier_code(
-                    literal,
-                    category,
-                    true,
-                    entry.index,
-                )),
-                None => panic!("Def: Couldn't find \"{}\" in symbol table", literal),
+        match current_token {
+            Token::Identifier { literal } => {
+                self.symbol_table
+                    .define(literal.to_owned(), type_, category);
+                self.tokenizer.advance();
+                Ok(())
             }
-            self.tokenizer.advance();
-            return Ok(());
-        } else {
-            return Err(format!("Token is not an Identifier: {:?}", current_token));
+            _ => Err(format!("Token is not an Identifier: {:?}", current_token)),
         }
     }
 
     fn eat_variable_use_identifier(
         &mut self,
         predefined_token: Option<&Token>,
-    ) -> Result<(), String> {
+    ) -> Result<&Entry, String> {
         let current_token = match predefined_token {
             Some(token) => token,
             None => self.tokenizer.current_token.as_ref().unwrap(),
         };
-        if let Token::Identifier { literal } = current_token {
-            let symbol = self.symbol_table.get_entry(literal);
-            match symbol {
-                Some(entry) => self.add_xml_events(get_variable_identifier_code(
-                    literal,
-                    entry.kind.clone(),
-                    false,
-                    entry.index,
-                )),
-                None => panic!("Use: Couldn't find \"{}\" in symbol table", literal),
+        match current_token {
+            Token::Identifier { literal } => {
+                let symbol = self.symbol_table.get_entry(literal);
+                match symbol {
+                    Some(entry) => {
+                        if predefined_token.is_none() {
+                            self.tokenizer.advance();
+                        }
+                        Ok(entry)
+                    }
+                    None => Err(format!(
+                        "Use: Couldn't find \"{}\" in symbol table",
+                        literal,
+                    )),
+                }
             }
-            if predefined_token.is_none() {
-                self.tokenizer.advance();
-            }
-            return Ok(());
-        } else {
-            return Err(format!("Token is not an Identifier: {:?}", current_token));
+            _ => Err(format!("Token is not an Identifier: {:?}", current_token)),
         }
     }
 
@@ -347,9 +338,9 @@ impl CompilationEngine {
             None,
             true,
         )?;
-        let kind = keyword_to_kind(&static_or_field);
+        let kind = keyword_to_kind(&static_or_field)?;
         let type_ = self.eat_type()?;
-        let type_ = type_to_string(&type_);
+        let type_ = type_to_string(&type_)?;
         self.eat_variable_definition_identifier(kind.clone(), type_.clone())?;
         while let Ok(_) = self.eat_keyword_or_symbol(
             vec![Token::Symbol {
@@ -469,7 +460,7 @@ impl CompilationEngine {
 
         let res = self.eat_type();
         if let Ok(token) = res {
-            let type_ = type_to_string(&token);
+            let type_ = type_to_string(&token)?;
             self.eat_variable_definition_identifier(Kind::Arg, type_)?;
             while let Ok(_) = self.eat_keyword_or_symbol(
                 vec![Token::Symbol {
@@ -479,7 +470,7 @@ impl CompilationEngine {
                 true,
             ) {
                 let type_ = self.eat_type()?;
-                let type_ = type_to_string(&type_);
+                let type_ = type_to_string(&type_)?;
                 self.eat_variable_definition_identifier(Kind::Arg, type_)?;
             }
         }
@@ -537,7 +528,7 @@ impl CompilationEngine {
             true,
         )?;
         let type_ = self.eat_type()?;
-        let type_ = type_to_string(&type_);
+        let type_ = type_to_string(&type_)?;
         self.eat_variable_definition_identifier(Kind::Var, type_.clone())?;
         while let Ok(_) = self.eat_keyword_or_symbol(
             vec![Token::Symbol {
@@ -802,10 +793,12 @@ impl CompilationEngine {
                 )?;
                 match initial_identifier {
                     Token::Identifier { literal } => literal,
-                    _ => panic!(
-                        "Subroutine name is not identifier: {:?}",
-                        initial_identifier
-                    ),
+                    _ => {
+                        return Err(format!(
+                            "Subroutine name is not identifier: {:?}",
+                            initial_identifier
+                        ))
+                    }
                 }
             }
             Err(_) => {
@@ -836,9 +829,19 @@ impl CompilationEngine {
                         Token::Identifier { literal: func_name } => {
                             format!("{}.{}", class_name, func_name)
                         }
-                        _ => panic!("Subroutine name is not identifier: {:?}", second_identifier),
+                        _ => {
+                            return Err(format!(
+                                "Subroutine name is not identifier: {:?}",
+                                second_identifier
+                            ))
+                        }
                     },
-                    _ => panic!("Class name is not identifier: {:?}", initial_identifier),
+                    _ => {
+                        return Err(format!(
+                            "Class name is not identifier: {:?}",
+                            initial_identifier
+                        ))
+                    }
                 }
             }
         };
@@ -958,9 +961,14 @@ impl CompilationEngine {
                     Symbol::LessThan => self.vm_writer.write_arithmetic(MathInstr::Lt),
                     Symbol::GreaterThan => self.vm_writer.write_arithmetic(MathInstr::Gt),
                     Symbol::Equals => self.vm_writer.write_arithmetic(MathInstr::Eq),
-                    _ => panic!("Op Symbol in expression is not implemented: {:?}", symbol),
+                    _ => {
+                        return Err(format!(
+                            "Op Symbol in expression is not implemented: {:?}",
+                            symbol
+                        ))
+                    }
                 },
-                _ => panic!("Op in expression is not a Symbol: {:?}", op),
+                _ => return Err(format!("Op in expression is not a Symbol: {:?}", op)),
             }
         }
 
@@ -998,9 +1006,9 @@ impl CompilationEngine {
                 Ok(Token::Symbol { symbol }) => match symbol {
                     Symbol::Minus => self.vm_writer.write_arithmetic(MathInstr::Neg),
                     Symbol::Tilde => self.vm_writer.write_arithmetic(MathInstr::Not),
-                    _ => panic!("UnaryOp is not neg or not: {:?}", symbol),
+                    _ => return Err(format!("UnaryOp is not neg or not: {:?}", symbol)),
                 },
-                _ => panic!("UnaryOp is not Symbol: {:?}", res),
+                _ => return Err(format!("UnaryOp is not Symbol: {:?}", res)),
             }
             self.add_xml_event("-term");
             return Ok(());
@@ -1172,9 +1180,9 @@ impl CompilationEngine {
                         self.add_xml_event("-term");
                         return Ok(());
                     }
-                    _ => panic!("Eating a LParen or Period returned: {:?}", symbol),
+                    _ => return Err(format!("Eating a LParen or Period returned: {:?}", symbol)),
                 },
-                _ => panic!("Eating a Symbol returned: {:?}", token),
+                _ => return Err(format!("Eating a Symbol returned: {:?}", token)),
             },
             Err(_) => {
                 // If it's not an array index or a subroutine call, it is a variable.
@@ -1188,7 +1196,7 @@ impl CompilationEngine {
 
     fn current_token_begins_term(&self) -> bool {
         let current_token = self.tokenizer.current_token.as_ref().unwrap();
-        return match current_token {
+        match current_token {
             Token::IntegerConstant { .. } => true,
             Token::StringConstant { .. } => true,
             Token::Keyword {
@@ -1214,7 +1222,7 @@ impl CompilationEngine {
                 symbol: Symbol::Tilde,
             } => true,
             _ => false,
-        };
+        }
     }
 
     fn compile_expression_list(&mut self) -> Result<usize, String> {
