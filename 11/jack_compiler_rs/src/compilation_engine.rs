@@ -1086,8 +1086,8 @@ impl CompilationEngine {
             match res {
                 Ok(Token::Keyword { keyword }) => match keyword {
                     Keyword::True => {
-                        self.vm_writer.write_push(MemorySegment::Constant, 1);
-                        self.vm_writer.write_arithmetic(MathInstr::Neg);
+                        self.vm_writer.write_push(MemorySegment::Constant, 0);
+                        self.vm_writer.write_arithmetic(MathInstr::Not);
                     }
                     Keyword::False => self.vm_writer.write_push(MemorySegment::Constant, 0),
                     Keyword::Null => self.vm_writer.write_push(MemorySegment::Constant, 0),
