@@ -112,7 +112,7 @@ pub struct CompilationEngine {
     tokenizer: Tokenizer,
     pub vm_writer: VMWriter,
     class_name: String,
-}
+    }
 
 impl CompilationEngine {
     pub fn new(tokenizer: Tokenizer) -> Self {
@@ -121,7 +121,7 @@ impl CompilationEngine {
             tokenizer: tokenizer,
             vm_writer: VMWriter::new(),
             class_name: String::from(""),
-        }
+                    }
     }
 
     fn add_xml_event<Event: Into<String>>(&mut self, event: Event) {}
@@ -1149,6 +1149,7 @@ impl CompilationEngine {
         );
         match next_token {
             Ok(token) => match token {
+                // Term is a subroutine call
                 Token::Symbol { ref symbol } => match symbol {
                     Symbol::LParen => {
                         self.eat_class_or_subroutine_use_identifier(
@@ -1162,7 +1163,19 @@ impl CompilationEngine {
                             Some(&token),
                             true,
                         )?;
-                        self.compile_expression_list()?;
+
+                        let num_args = self.compile_expression_list()?;
+                        let subroutine_name = match initial_identifier {
+                            Token::Identifier { literal } => literal,
+                            _ => {
+                                return Err(format!(
+                                    "Subroutine name is not identifier: {:?}",
+                                    initial_identifier
+                                ))
+                            }
+                        };
+                        self.vm_writer.write_call(subroutine_name, num_args);
+
                         self.eat_keyword_or_symbol(
                             vec![Token::Symbol {
                                 symbol: Symbol::RParen,
@@ -1185,7 +1198,7 @@ impl CompilationEngine {
                             Some(&token),
                             true,
                         )?;
-                        self.eat_class_or_subroutine_use_identifier(
+                        let second_identifier = self.eat_class_or_subroutine_use_identifier(
                             IdentifierCategory::Subroutine,
                             None,
                         )?;
@@ -1196,7 +1209,31 @@ impl CompilationEngine {
                             None,
                             true,
                         )?;
-                        self.compile_expression_list()?;
+
+                        let num_args = self.compile_expression_list()?;
+                        let subroutine_name = match initial_identifier {
+                            Token::Identifier {
+                                literal: class_name,
+                            } => match second_identifier {
+                                Token::Identifier { literal: func_name } => {
+                                    format!("{}.{}", class_name, func_name)
+                                }
+                                _ => {
+                                    return Err(format!(
+                                        "Subroutine name is not identifier: {:?}",
+                                        second_identifier
+                                    ))
+                                }
+                            },
+                            _ => {
+                                return Err(format!(
+                                    "Class name is not identifier: {:?}",
+                                    initial_identifier
+                                ))
+                            }
+                        };
+                        self.vm_writer.write_call(subroutine_name, num_args);
+
                         self.eat_keyword_or_symbol(
                             vec![Token::Symbol {
                                 symbol: Symbol::RParen,
