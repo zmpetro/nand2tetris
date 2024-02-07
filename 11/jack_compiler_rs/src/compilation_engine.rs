@@ -446,7 +446,19 @@ impl CompilationEngine {
             None,
             true,
         )?;
-        self.compile_parameter_list()?;
+        let is_method = match subroutine_type {
+            Token::Keyword { ref keyword } => match keyword {
+                Keyword::Method => true,
+                _ => false,
+            },
+            _ => {
+                return Err(format!(
+                    "Subroutine type is not Keyword: {:?}",
+                    subroutine_type
+                ))
+            }
+        };
+        self.compile_parameter_list(is_method)?;
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::RParen,
@@ -479,9 +491,14 @@ impl CompilationEngine {
         Ok(())
     }
 
-    fn compile_parameter_list(&mut self) -> Result<(), String> {
+    fn compile_parameter_list(&mut self, is_method: bool) -> Result<(), String> {
         // Compiles a (possibly empty) parameter list. Does not handle the enclosing "()".
         self.add_xml_event("+parameterList");
+
+        if is_method {
+            self.symbol_table
+                .define(String::from("self"), self.class_name.clone(), Kind::Arg);
+        }
 
         let res = self.eat_type();
         if let Ok(token) = res {
