@@ -4,6 +4,8 @@ use crate::vm_writer::{MathInstr, MemorySegment, VMWriter};
 
 const ALLOC_FN: &str = "Memory.alloc";
 const MULTIPLY_FN: &str = "Math.multiply";
+const STRING_NEW_FN: &str = "String.new";
+const STRING_APPEND_FN: &str = "String.appendChar";
 
 enum IdentifierCategory {
     Class,
@@ -176,12 +178,12 @@ impl CompilationEngine {
         }
     }
 
-    fn eat_string(&mut self) -> Result<(), String> {
-        let current_token = self.tokenizer.current_token.as_ref().unwrap();
+    fn eat_string(&mut self) -> Result<Token, String> {
+        let current_token = self.tokenizer.current_token.as_ref().unwrap().clone();
         if let Token::StringConstant { .. } = current_token {
             self.add_xml_events(current_token.to_xml_events());
             self.tokenizer.advance();
-            return Ok(());
+            return Ok(current_token);
         } else {
             return Err(format!(
                 "Token is not an StringConstant: {:?}",
@@ -530,7 +532,7 @@ impl CompilationEngine {
                 Keyword::Constructor => {
                     self.vm_writer
                         .write_push(MemorySegment::Constant, self.num_fields);
-                    self.vm_writer.write_call(String::from(ALLOC_FN), 1);
+                    self.vm_writer.write_call(ALLOC_FN.to_owned(), 1);
                     self.vm_writer.write_pop(MemorySegment::Pointer, 0);
                     true
                 }
@@ -1071,7 +1073,7 @@ impl CompilationEngine {
                 Token::Symbol { symbol } => match symbol {
                     Symbol::Plus => self.vm_writer.write_arithmetic(MathInstr::Add),
                     Symbol::Minus => self.vm_writer.write_arithmetic(MathInstr::Sub),
-                    Symbol::Asterisk => self.vm_writer.write_call(MULTIPLY_FN.into(), 2),
+                    Symbol::Asterisk => self.vm_writer.write_call(MULTIPLY_FN.to_owned(), 2),
                     Symbol::Ampersand => self.vm_writer.write_arithmetic(MathInstr::And),
                     Symbol::Pipe => self.vm_writer.write_arithmetic(MathInstr::Or),
                     Symbol::LessThan => self.vm_writer.write_arithmetic(MathInstr::Lt),
@@ -1159,7 +1161,15 @@ impl CompilationEngine {
             return Ok(());
         }
         let res = self.eat_string();
-        if res.is_ok() {
+        if let Ok(Token::StringConstant { literal }) = res {
+            let len = literal.len();
+            self.vm_writer.write_push(MemorySegment::Constant, len);
+            self.vm_writer.write_call(STRING_NEW_FN.to_owned(), 1);
+            for ch in literal.chars() {
+                self.vm_writer
+                    .write_push(MemorySegment::Constant, ch as usize);
+                self.vm_writer.write_call(STRING_APPEND_FN.to_owned(), 2);
+            }
             self.add_xml_event("-term");
             return Ok(());
         }
