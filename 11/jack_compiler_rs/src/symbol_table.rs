@@ -21,7 +21,7 @@ impl Kind {
 
 #[derive(Debug)]
 pub struct Entry {
-    type_: String,
+    pub type_: String,
     pub kind: Kind,
     pub index: usize,
 }

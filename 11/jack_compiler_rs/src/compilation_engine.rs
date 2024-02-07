@@ -2,6 +2,7 @@ use crate::symbol_table::{Entry, Kind, SymbolTable};
 use crate::tokenizer::{Keyword, Symbol, Token, Tokenizer};
 use crate::vm_writer::{MathInstr, MemorySegment, VMWriter};
 
+const ALLOC_FN: &str = "Memory.alloc";
 const MULTIPLY_FN: &str = "Math.multiply";
 
 enum IdentifierCategory {
@@ -112,6 +113,7 @@ pub struct CompilationEngine {
     tokenizer: Tokenizer,
     pub vm_writer: VMWriter,
     class_name: String,
+    num_fields: usize,
     if_statement_idx: usize,
     while_statement_idx: usize,
 }
@@ -123,6 +125,7 @@ impl CompilationEngine {
             tokenizer: tokenizer,
             vm_writer: VMWriter::new(),
             class_name: String::from(""),
+            num_fields: 0,
             if_statement_idx: 0,
             while_statement_idx: 0,
         }
@@ -218,6 +221,9 @@ impl CompilationEngine {
         let current_token = self.tokenizer.current_token.as_ref().unwrap();
         match current_token {
             Token::Identifier { literal } => {
+                if let Kind::Field = category {
+                    self.num_fields += 1;
+                }
                 self.symbol_table
                     .define(literal.to_owned(), type_, category);
                 self.tokenizer.advance();
@@ -519,7 +525,31 @@ impl CompilationEngine {
                 .write_function(function_name, self.symbol_table.subroutine_index_var);
         }
 
-        self.compile_statements(void_function)?;
+        let ctor_or_method = match subroutine_type {
+            Token::Keyword { keyword } => match keyword {
+                Keyword::Constructor => {
+                    self.vm_writer
+                        .write_push(MemorySegment::Constant, self.num_fields);
+                    self.vm_writer.write_call(String::from(ALLOC_FN), 1);
+                    self.vm_writer.write_pop(MemorySegment::Pointer, 0);
+                    true
+                }
+                Keyword::Method => {
+                    self.vm_writer.write_push(MemorySegment::Argument, 0);
+                    self.vm_writer.write_pop(MemorySegment::Pointer, 0);
+                    true
+                }
+                _ => false,
+            },
+            _ => {
+                return Err(format!(
+                    "Subroutine type is not Keyword: {:?}",
+                    subroutine_type
+                ))
+            }
+        };
+
+        self.compile_statements(ctor_or_method, void_function)?;
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::RCurly,
@@ -579,7 +609,11 @@ impl CompilationEngine {
         Ok(())
     }
 
-    fn compile_statements(&mut self, void_function: bool) -> Result<(), String> {
+    fn compile_statements(
+        &mut self,
+        ctor_or_method: bool,
+        void_function: bool,
+    ) -> Result<(), String> {
         // Compiles a sequence of statments. Does not handle the enclosing "{}".
         self.add_xml_event("+statements");
 
@@ -589,9 +623,9 @@ impl CompilationEngine {
             match current_token {
                 Token::Keyword { keyword } => match keyword {
                     Keyword::Let => self.compile_let()?,
-                    Keyword::If => self.compile_if(void_function)?,
-                    Keyword::While => self.compile_while(void_function)?,
-                    Keyword::Do => self.compile_do()?,
+                    Keyword::If => self.compile_if(ctor_or_method, void_function)?,
+                    Keyword::While => self.compile_while(ctor_or_method, void_function)?,
+                    Keyword::Do => self.compile_do(ctor_or_method)?,
                     Keyword::Return => self.compile_return(void_function)?,
                     _ => statements_left = false,
                 },
@@ -664,7 +698,7 @@ impl CompilationEngine {
         Ok(())
     }
 
-    fn compile_if(&mut self, void_function: bool) -> Result<(), String> {
+    fn compile_if(&mut self, ctor_or_method: bool, void_function: bool) -> Result<(), String> {
         // Compiles an if statement, possibly with a trailing `else` clause.
         self.add_xml_event("+ifStatement");
 
@@ -708,9 +742,7 @@ impl CompilationEngine {
             true,
         )?;
 
-        self.compile_statements(void_function)?;
-        self.vm_writer.write_goto(label_if_end.clone());
-        self.vm_writer.write_label(label_if_false);
+        self.compile_statements(ctor_or_method, void_function)?;
 
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
@@ -727,6 +759,7 @@ impl CompilationEngine {
             true,
         );
         if res.is_ok() {
+            // Entering else statement
             self.eat_keyword_or_symbol(
                 vec![Token::Symbol {
                     symbol: Symbol::LCurly,
@@ -734,7 +767,12 @@ impl CompilationEngine {
                 None,
                 true,
             )?;
-            self.compile_statements(void_function)?;
+
+            self.vm_writer.write_goto(label_if_end.clone());
+            self.vm_writer.write_label(label_if_false);
+            self.compile_statements(ctor_or_method, void_function)?;
+            self.vm_writer.write_label(label_if_end);
+
             self.eat_keyword_or_symbol(
                 vec![Token::Symbol {
                     symbol: Symbol::RCurly,
@@ -742,15 +780,16 @@ impl CompilationEngine {
                 None,
                 true,
             )?;
+        } else {
+            // No else statement exists
+            self.vm_writer.write_label(label_if_false);
         }
-
-        self.vm_writer.write_label(label_if_end);
 
         self.add_xml_event("-ifStatement");
         Ok(())
     }
 
-    fn compile_while(&mut self, void_function: bool) -> Result<(), String> {
+    fn compile_while(&mut self, ctor_or_method: bool, void_function: bool) -> Result<(), String> {
         // Compiles a while statement.
         self.add_xml_event("+whileStatement");
 
@@ -793,7 +832,7 @@ impl CompilationEngine {
             true,
         )?;
 
-        self.compile_statements(void_function)?;
+        self.compile_statements(ctor_or_method, void_function)?;
         self.vm_writer.write_goto(label_expr);
         self.vm_writer.write_label(label_end);
 
@@ -809,7 +848,7 @@ impl CompilationEngine {
         Ok(())
     }
 
-    fn compile_do(&mut self) -> Result<(), String> {
+    fn compile_do(&mut self, ctor_or_method: bool) -> Result<(), String> {
         // Compiles a do statement.
         self.add_xml_event("+doStatement");
 
@@ -828,7 +867,7 @@ impl CompilationEngine {
             None,
             false,
         );
-        let subroutine_name = match left_paren {
+        match left_paren {
             Ok(token) => {
                 self.eat_class_or_subroutine_use_identifier(
                     IdentifierCategory::Subroutine,
@@ -842,7 +881,16 @@ impl CompilationEngine {
                     true,
                 )?;
                 match initial_identifier {
-                    Token::Identifier { literal } => literal,
+                    Token::Identifier { literal } => {
+                        if ctor_or_method {
+                            self.vm_writer.write_push(MemorySegment::Pointer, 0);
+                            let num_args = 1 + self.compile_expression_list()?;
+                            self.vm_writer
+                                .write_call(format!("{}.{}", self.class_name, literal), num_args)
+                        } else {
+                            return Err(format!("Self method called from function"));
+                        }
+                    }
                     _ => {
                         return Err(format!(
                             "Subroutine name is not identifier: {:?}",
@@ -877,7 +925,27 @@ impl CompilationEngine {
                         literal: class_name,
                     } => match second_identifier {
                         Token::Identifier { literal: func_name } => {
-                            format!("{}.{}", class_name, func_name)
+                            // TODO: Use a predefined "eat" function instead to get entry?
+                            let symbol = self.symbol_table.get_entry(&class_name);
+                            match symbol {
+                                Some(entry) => {
+                                    // We are calling a method
+                                    self.vm_writer
+                                        .write_push(kind_to_segment(&entry.kind), entry.index);
+                                    let type_ = entry.type_.clone();
+                                    let num_args = 1 + self.compile_expression_list()?;
+                                    self.vm_writer
+                                        .write_call(format!("{}.{}", type_, func_name), num_args);
+                                }
+                                None => {
+                                    // We are not calling a method
+                                    let num_args = self.compile_expression_list()?;
+                                    self.vm_writer.write_call(
+                                        format!("{}.{}", class_name, func_name),
+                                        num_args,
+                                    );
+                                }
+                            }
                         }
                         _ => {
                             return Err(format!(
@@ -896,8 +964,6 @@ impl CompilationEngine {
             }
         };
 
-        let num_args = self.compile_expression_list()?;
-        self.vm_writer.write_call(subroutine_name, num_args);
         // Since we are calling a void function, we need to pop the return
         // value off the stack
         self.vm_writer.write_pop(MemorySegment::Temp, 0);
@@ -1126,6 +1192,7 @@ impl CompilationEngine {
                     }
                     Keyword::False => self.vm_writer.write_push(MemorySegment::Constant, 0),
                     Keyword::Null => self.vm_writer.write_push(MemorySegment::Constant, 0),
+                    Keyword::This => self.vm_writer.write_push(MemorySegment::Pointer, 0),
                     _ => return Err(format!("Keyword constant not implemented: {:?}", keyword)),
                 },
                 _ => return Err(format!("Keyword constant is not Keyword: {:?}", res)),
