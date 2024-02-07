@@ -4,6 +4,7 @@ use crate::vm_writer::{MathInstr, MemorySegment, VMWriter};
 
 const ALLOC_FN: &str = "Memory.alloc";
 const MULTIPLY_FN: &str = "Math.multiply";
+const DIVIDE_FN: &str = "Math.divide";
 const STRING_NEW_FN: &str = "String.new";
 const STRING_APPEND_FN: &str = "String.appendChar";
 
@@ -1074,6 +1075,7 @@ impl CompilationEngine {
                     Symbol::Plus => self.vm_writer.write_arithmetic(MathInstr::Add),
                     Symbol::Minus => self.vm_writer.write_arithmetic(MathInstr::Sub),
                     Symbol::Asterisk => self.vm_writer.write_call(MULTIPLY_FN.to_owned(), 2),
+                    Symbol::Slash => self.vm_writer.write_call(DIVIDE_FN.to_owned(), 2),
                     Symbol::Ampersand => self.vm_writer.write_arithmetic(MathInstr::And),
                     Symbol::Pipe => self.vm_writer.write_arithmetic(MathInstr::Or),
                     Symbol::LessThan => self.vm_writer.write_arithmetic(MathInstr::Lt),
