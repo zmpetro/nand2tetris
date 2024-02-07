@@ -1312,13 +1312,37 @@ impl CompilationEngine {
                             true,
                         )?;
 
-                        let num_args = self.compile_expression_list()?;
-                        let subroutine_name = match initial_identifier {
+                        match initial_identifier {
                             Token::Identifier {
                                 literal: class_name,
                             } => match second_identifier {
                                 Token::Identifier { literal: func_name } => {
-                                    format!("{}.{}", class_name, func_name)
+                                    // TODO: Use a predefined "eat" function instead to get entry?
+                                    // TODO: This is copy-paste from compile_do. Create function?
+                                    let symbol = self.symbol_table.get_entry(&class_name);
+                                    match symbol {
+                                        Some(entry) => {
+                                            // We are calling a method
+                                            self.vm_writer.write_push(
+                                                kind_to_segment(&entry.kind),
+                                                entry.index,
+                                            );
+                                            let type_ = entry.type_.clone();
+                                            let num_args = 1 + self.compile_expression_list()?;
+                                            self.vm_writer.write_call(
+                                                format!("{}.{}", type_, func_name),
+                                                num_args,
+                                            );
+                                        }
+                                        None => {
+                                            // We are not calling a method
+                                            let num_args = self.compile_expression_list()?;
+                                            self.vm_writer.write_call(
+                                                format!("{}.{}", class_name, func_name),
+                                                num_args,
+                                            );
+                                        }
+                                    }
                                 }
                                 _ => {
                                     return Err(format!(
@@ -1334,7 +1358,6 @@ impl CompilationEngine {
                                 ))
                             }
                         };
-                        self.vm_writer.write_call(subroutine_name, num_args);
 
                         self.eat_keyword_or_symbol(
                             vec![Token::Symbol {
