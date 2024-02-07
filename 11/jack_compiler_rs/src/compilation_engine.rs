@@ -112,7 +112,9 @@ pub struct CompilationEngine {
     tokenizer: Tokenizer,
     pub vm_writer: VMWriter,
     class_name: String,
-    }
+    if_statement_idx: usize,
+    while_statement_idx: usize,
+}
 
 impl CompilationEngine {
     pub fn new(tokenizer: Tokenizer) -> Self {
@@ -121,7 +123,9 @@ impl CompilationEngine {
             tokenizer: tokenizer,
             vm_writer: VMWriter::new(),
             class_name: String::from(""),
-                    }
+            if_statement_idx: 0,
+            while_statement_idx: 0,
+        }
     }
 
     fn add_xml_event<Event: Into<String>>(&mut self, event: Event) {}
@@ -394,6 +398,8 @@ impl CompilationEngine {
         self.add_xml_event("+subroutineDec");
 
         self.symbol_table.start_subroutine();
+        self.if_statement_idx = 0;
+        self.while_statement_idx = 0;
 
         let subroutine_type = self.eat_keyword_or_symbol(
             vec![
@@ -732,6 +738,10 @@ impl CompilationEngine {
         // Compiles a while statement.
         self.add_xml_event("+whileStatement");
 
+        let label_expr = format!("WHILE_EXP{}", self.while_statement_idx);
+        let label_end = format!("WHILE_END{}", self.while_statement_idx);
+        self.while_statement_idx += 1;
+
         self.eat_keyword_or_symbol(
             vec![Token::Keyword {
                 keyword: Keyword::While,
@@ -746,7 +756,12 @@ impl CompilationEngine {
             None,
             true,
         )?;
+
+        self.vm_writer.write_label(label_expr.clone());
         self.compile_expression()?;
+        self.vm_writer.write_arithmetic(MathInstr::Not);
+        self.vm_writer.write_if_goto(label_end.clone());
+
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::RParen,
@@ -761,7 +776,11 @@ impl CompilationEngine {
             None,
             true,
         )?;
+
         self.compile_statements(void_function)?;
+        self.vm_writer.write_goto(label_expr);
+        self.vm_writer.write_label(label_end);
+
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::RCurly,
