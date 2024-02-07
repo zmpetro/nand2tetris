@@ -668,6 +668,11 @@ impl CompilationEngine {
         // Compiles an if statement, possibly with a trailing `else` clause.
         self.add_xml_event("+ifStatement");
 
+        let label_if_true = format!("IF_TRUE{}", self.if_statement_idx);
+        let label_if_false = format!("IF_FALSE{}", self.if_statement_idx);
+        let label_if_end = format!("IF_END{}", self.if_statement_idx);
+        self.if_statement_idx += 1;
+
         self.eat_keyword_or_symbol(
             vec![Token::Keyword {
                 keyword: Keyword::If,
@@ -682,7 +687,12 @@ impl CompilationEngine {
             None,
             true,
         )?;
+
         self.compile_expression()?;
+        self.vm_writer.write_if_goto(label_if_true.clone());
+        self.vm_writer.write_goto(label_if_false.clone());
+        self.vm_writer.write_label(label_if_true);
+
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::RParen,
@@ -697,7 +707,11 @@ impl CompilationEngine {
             None,
             true,
         )?;
+
         self.compile_statements(void_function)?;
+        self.vm_writer.write_goto(label_if_end.clone());
+        self.vm_writer.write_label(label_if_false);
+
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::RCurly,
@@ -729,6 +743,8 @@ impl CompilationEngine {
                 true,
             )?;
         }
+
+        self.vm_writer.write_label(label_if_end);
 
         self.add_xml_event("-ifStatement");
         Ok(())
