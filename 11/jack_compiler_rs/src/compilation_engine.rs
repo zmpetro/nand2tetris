@@ -59,58 +59,6 @@ fn kind_to_segment(kind: &Kind) -> MemorySegment {
     }
 }
 
-fn get_class_or_subroutine_identifier_code(
-    name: &str,
-    category: IdentifierCategory,
-    being_defined: bool,
-) -> Vec<String> {
-    let mut code: Vec<String> = vec![];
-    code.push(String::from("+identifier"));
-    code.push(String::from("+name"));
-    code.push(format!(" {} ", name));
-    code.push(String::from("-name"));
-    code.push(String::from("+category"));
-    code.push(format!(" {} ", category.to_string()));
-    code.push(String::from("-category"));
-    code.push(String::from("+being_defined"));
-    if being_defined {
-        code.push(String::from(" true "));
-    } else {
-        code.push(String::from(" false "));
-    }
-    code.push(String::from("-being_defined"));
-    code.push(String::from("-identifier"));
-    code
-}
-
-fn get_variable_identifier_code(
-    name: &str,
-    category: Kind,
-    being_defined: bool,
-    index: usize,
-) -> Vec<String> {
-    let mut code: Vec<String> = vec![];
-    code.push(String::from("+identifier"));
-    code.push(String::from("+name"));
-    code.push(format!(" {} ", name));
-    code.push(String::from("-name"));
-    code.push(String::from("+category"));
-    code.push(format!(" {} ", category.to_string()));
-    code.push(String::from("-category"));
-    code.push(String::from("+being_defined"));
-    if being_defined {
-        code.push(String::from(" true "));
-    } else {
-        code.push(String::from(" false "));
-    }
-    code.push(String::from("-being_defined"));
-    code.push(String::from("+index"));
-    code.push(format!(" {} ", index));
-    code.push(String::from("-index"));
-    code.push(String::from("-identifier"));
-    code
-}
-
 pub struct CompilationEngine {
     symbol_table: SymbolTable,
     tokenizer: Tokenizer,
@@ -134,10 +82,6 @@ impl CompilationEngine {
         }
     }
 
-    fn add_xml_event<Event: Into<String>>(&mut self, event: Event) {}
-
-    fn add_xml_events(&mut self, events: Vec<String>) {}
-
     fn eat_keyword_or_symbol(
         &mut self,
         expected_tokens: Vec<Token>,
@@ -150,9 +94,6 @@ impl CompilationEngine {
         }
         .clone();
         if expected_tokens.contains(&current_token) {
-            if write_code {
-                self.add_xml_events(current_token.to_xml_events());
-            }
             if predefined_token.is_none() {
                 self.tokenizer.advance();
             }
@@ -168,7 +109,6 @@ impl CompilationEngine {
     fn eat_integer(&mut self) -> Result<Token, String> {
         let current_token = self.tokenizer.current_token.as_ref().unwrap().clone();
         if let Token::IntegerConstant { .. } = current_token {
-            self.add_xml_events(current_token.to_xml_events());
             self.tokenizer.advance();
             return Ok(current_token);
         } else {
@@ -182,7 +122,6 @@ impl CompilationEngine {
     fn eat_string(&mut self) -> Result<Token, String> {
         let current_token = self.tokenizer.current_token.as_ref().unwrap().clone();
         if let Token::StringConstant { .. } = current_token {
-            self.add_xml_events(current_token.to_xml_events());
             self.tokenizer.advance();
             return Ok(current_token);
         } else {
@@ -204,9 +143,6 @@ impl CompilationEngine {
         }
         .clone();
         if let Token::Identifier { ref literal } = current_token {
-            self.add_xml_events(get_class_or_subroutine_identifier_code(
-                literal, category, false,
-            ));
             if predefined_token.is_none() {
                 self.tokenizer.advance();
             }
@@ -280,7 +216,6 @@ impl CompilationEngine {
          * must advance to the first token.
          */
         self.tokenizer.advance();
-        self.add_xml_event("+class");
 
         self.eat_keyword_or_symbol(
             vec![Token::Keyword {
@@ -309,10 +244,6 @@ impl CompilationEngine {
             None,
             true,
         )?;
-
-        self.add_xml_event("-class");
-        self.add_xml_event("\n");
-
         Ok(())
     }
 
@@ -347,8 +278,6 @@ impl CompilationEngine {
 
     fn compile_class_var_dec(&mut self) -> Result<(), String> {
         // Compiles a static variable declaration, or a field declaration.
-        self.add_xml_event("+classVarDec");
-
         let static_or_field = self.eat_keyword_or_symbol(
             vec![
                 Token::Keyword {
@@ -381,8 +310,6 @@ impl CompilationEngine {
             None,
             true,
         )?;
-
-        self.add_xml_event("-classVarDec");
         Ok(())
     }
 
@@ -404,8 +331,6 @@ impl CompilationEngine {
 
     fn compile_subroutine_dec(&mut self) -> Result<(), String> {
         // Compiles a complete method, function, or constructor.
-        self.add_xml_event("+subroutineDec");
-
         self.symbol_table.start_subroutine();
         self.if_statement_idx = 0;
         self.while_statement_idx = 0;
@@ -467,8 +392,6 @@ impl CompilationEngine {
             true,
         )?;
         self.compile_subroutine_body(subroutine_type, subroutine_name, void_function)?;
-
-        self.add_xml_event("-subroutineDec");
         Ok(())
     }
 
@@ -493,8 +416,6 @@ impl CompilationEngine {
 
     fn compile_parameter_list(&mut self, is_method: bool) -> Result<(), String> {
         // Compiles a (possibly empty) parameter list. Does not handle the enclosing "()".
-        self.add_xml_event("+parameterList");
-
         if is_method {
             self.symbol_table
                 .define(String::from("self"), self.class_name.clone(), Kind::Arg);
@@ -516,8 +437,6 @@ impl CompilationEngine {
                 self.eat_variable_definition_identifier(Kind::Arg, type_)?;
             }
         }
-
-        self.add_xml_event("-parameterList");
         Ok(())
     }
 
@@ -528,8 +447,6 @@ impl CompilationEngine {
         void_function: bool,
     ) -> Result<(), String> {
         // Compiles a subroutine's body.
-        self.add_xml_event("+subroutineBody");
-
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::LCurly,
@@ -577,15 +494,11 @@ impl CompilationEngine {
             None,
             true,
         )?;
-
-        self.add_xml_event("-subroutineBody");
         Ok(())
     }
 
     fn compile_var_dec(&mut self) -> Result<(), String> {
         // Compiles a `var` declaration.
-        self.add_xml_event("+varDec");
-
         self.eat_keyword_or_symbol(
             vec![Token::Keyword {
                 keyword: Keyword::Var,
@@ -612,8 +525,6 @@ impl CompilationEngine {
             None,
             true,
         )?;
-
-        self.add_xml_event("-varDec");
         Ok(())
     }
 
@@ -635,8 +546,6 @@ impl CompilationEngine {
         void_function: bool,
     ) -> Result<(), String> {
         // Compiles a sequence of statments. Does not handle the enclosing "{}".
-        self.add_xml_event("+statements");
-
         let mut statements_left = true;
         while statements_left {
             let current_token = self.tokenizer.current_token.as_ref().unwrap();
@@ -652,15 +561,11 @@ impl CompilationEngine {
                 _ => statements_left = false,
             }
         }
-
-        self.add_xml_event("-statements");
         Ok(())
     }
 
     fn compile_let(&mut self) -> Result<(), String> {
         // Compiles a let statement.
-        self.add_xml_event("+letStatement");
-
         self.eat_keyword_or_symbol(
             vec![Token::Keyword {
                 keyword: Keyword::Let,
@@ -725,15 +630,11 @@ impl CompilationEngine {
             None,
             true,
         )?;
-
-        self.add_xml_event("-letStatement");
         Ok(())
     }
 
     fn compile_if(&mut self, ctor_or_method: bool, void_function: bool) -> Result<(), String> {
         // Compiles an if statement, possibly with a trailing `else` clause.
-        self.add_xml_event("+ifStatement");
-
         let label_if_true = format!("IF_TRUE{}", self.if_statement_idx);
         let label_if_false = format!("IF_FALSE{}", self.if_statement_idx);
         let label_if_end = format!("IF_END{}", self.if_statement_idx);
@@ -816,15 +717,11 @@ impl CompilationEngine {
             // No else statement exists
             self.vm_writer.write_label(label_if_false);
         }
-
-        self.add_xml_event("-ifStatement");
         Ok(())
     }
 
     fn compile_while(&mut self, ctor_or_method: bool, void_function: bool) -> Result<(), String> {
         // Compiles a while statement.
-        self.add_xml_event("+whileStatement");
-
         let label_expr = format!("WHILE_EXP{}", self.while_statement_idx);
         let label_end = format!("WHILE_END{}", self.while_statement_idx);
         self.while_statement_idx += 1;
@@ -875,15 +772,11 @@ impl CompilationEngine {
             None,
             true,
         )?;
-
-        self.add_xml_event("-whileStatement");
         Ok(())
     }
 
     fn compile_do(&mut self, ctor_or_method: bool) -> Result<(), String> {
         // Compiles a do statement.
-        self.add_xml_event("+doStatement");
-
         self.eat_keyword_or_symbol(
             vec![Token::Keyword {
                 keyword: Keyword::Do,
@@ -1014,15 +907,11 @@ impl CompilationEngine {
             None,
             true,
         )?;
-
-        self.add_xml_event("-doStatement");
         Ok(())
     }
 
     fn compile_return(&mut self, void_function: bool) -> Result<(), String> {
         // Compiles a return statement.
-        self.add_xml_event("+returnStatement");
-
         self.eat_keyword_or_symbol(
             vec![Token::Keyword {
                 keyword: Keyword::Return,
@@ -1055,15 +944,11 @@ impl CompilationEngine {
             self.vm_writer.write_push(MemorySegment::Constant, 0);
         }
         self.vm_writer.write_return();
-
-        self.add_xml_event("-returnStatement");
         Ok(())
     }
 
     fn compile_expression(&mut self) -> Result<(), String> {
         // Compiles an expression.
-        self.add_xml_event("+expression");
-
         self.compile_term()?;
         while let Ok(op) = self.eat_keyword_or_symbol(
             vec![
@@ -1120,8 +1005,6 @@ impl CompilationEngine {
                 _ => return Err(format!("Op in expression is not a Symbol: {:?}", op)),
             }
         }
-
-        self.add_xml_event("-expression");
         Ok(())
     }
 
@@ -1134,8 +1017,6 @@ impl CompilationEngine {
          * possibilities. Any other token is not part of this term and should
          * not be advanced over.
          */
-        self.add_xml_event("+term");
-
         // Always attempt to eat unaryOp first as they can precede any term.
         let res = self.eat_keyword_or_symbol(
             vec![
@@ -1159,7 +1040,6 @@ impl CompilationEngine {
                 },
                 _ => return Err(format!("UnaryOp is not Symbol: {:?}", res)),
             }
-            self.add_xml_event("-term");
             return Ok(());
         }
 
@@ -1180,7 +1060,6 @@ impl CompilationEngine {
                 None,
                 true,
             )?;
-            self.add_xml_event("-term");
             return Ok(());
         }
 
@@ -1188,7 +1067,6 @@ impl CompilationEngine {
         let res = self.eat_integer();
         if let Ok(Token::IntegerConstant { value }) = res {
             self.vm_writer.write_push(MemorySegment::Constant, value);
-            self.add_xml_event("-term");
             return Ok(());
         }
         let res = self.eat_string();
@@ -1201,7 +1079,6 @@ impl CompilationEngine {
                     .write_push(MemorySegment::Constant, ch as usize);
                 self.vm_writer.write_call(STRING_APPEND_FN.to_owned(), 2);
             }
-            self.add_xml_event("-term");
             return Ok(());
         }
 
@@ -1238,7 +1115,6 @@ impl CompilationEngine {
                 },
                 _ => return Err(format!("Keyword constant is not Keyword: {:?}", res)),
             }
-            self.add_xml_event("-term");
             return Ok(());
         }
 
@@ -1281,7 +1157,6 @@ impl CompilationEngine {
                 None,
                 true,
             )?;
-            self.add_xml_event("-term");
             return Ok(());
         }
 
@@ -1334,7 +1209,6 @@ impl CompilationEngine {
                             None,
                             true,
                         )?;
-                        self.add_xml_event("-term");
                         return Ok(());
                     }
                     Symbol::Period => {
@@ -1415,7 +1289,6 @@ impl CompilationEngine {
                             None,
                             true,
                         )?;
-                        self.add_xml_event("-term");
                         return Ok(());
                     }
                     _ => return Err(format!("Eating a LParen or Period returned: {:?}", symbol)),
@@ -1430,8 +1303,6 @@ impl CompilationEngine {
                 self.vm_writer.write_push(segment, index);
             }
         }
-
-        self.add_xml_event("-term");
         Ok(())
     }
 
@@ -1469,8 +1340,6 @@ impl CompilationEngine {
     fn compile_expression_list(&mut self) -> Result<usize, String> {
         // Compiles a (possibly empty) comma-separated list of expressions.
         // Returns the number of comma-separated expressions.
-        self.add_xml_event("+expressionList");
-
         let mut num_expressions: usize = 0;
         if self.current_token_begins_term() {
             self.compile_expression()?;
@@ -1486,8 +1355,6 @@ impl CompilationEngine {
                 num_expressions += 1;
             }
         }
-
-        self.add_xml_event("-expressionList");
         Ok(num_expressions)
     }
 }
