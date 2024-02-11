@@ -775,6 +775,28 @@ impl CompilationEngine {
         Ok(())
     }
 
+    fn call_subroutine(&mut self, class_name: &str, func_name: &str) -> Result<(), String> {
+        let symbol = self.symbol_table.get_entry(class_name);
+        match symbol {
+            Some(entry) => {
+                // We are calling a method
+                self.vm_writer
+                    .write_push(kind_to_segment(&entry.kind), entry.index);
+                let type_ = entry.type_.clone();
+                let num_args = 1 + self.compile_expression_list()?;
+                self.vm_writer
+                    .write_call(format!("{}.{}", type_, func_name), num_args);
+            }
+            None => {
+                // We are not calling a method
+                let num_args = self.compile_expression_list()?;
+                self.vm_writer
+                    .write_call(format!("{}.{}", class_name, func_name), num_args);
+            }
+        }
+        Ok(())
+    }
+
     fn compile_do(&mut self, ctor_or_method: bool) -> Result<(), String> {
         // Compiles a do statement.
         self.eat_keyword_or_symbol(
@@ -850,27 +872,7 @@ impl CompilationEngine {
                         literal: class_name,
                     } => match second_identifier {
                         Token::Identifier { literal: func_name } => {
-                            // TODO: Use a predefined "eat" function instead to get entry?
-                            let symbol = self.symbol_table.get_entry(&class_name);
-                            match symbol {
-                                Some(entry) => {
-                                    // We are calling a method
-                                    self.vm_writer
-                                        .write_push(kind_to_segment(&entry.kind), entry.index);
-                                    let type_ = entry.type_.clone();
-                                    let num_args = 1 + self.compile_expression_list()?;
-                                    self.vm_writer
-                                        .write_call(format!("{}.{}", type_, func_name), num_args);
-                                }
-                                None => {
-                                    // We are not calling a method
-                                    let num_args = self.compile_expression_list()?;
-                                    self.vm_writer.write_call(
-                                        format!("{}.{}", class_name, func_name),
-                                        num_args,
-                                    );
-                                }
-                            }
+                            self.call_subroutine(&class_name, &func_name)?;
                         }
                         _ => {
                             return Err(format!(
@@ -1240,32 +1242,7 @@ impl CompilationEngine {
                                 literal: class_name,
                             } => match second_identifier {
                                 Token::Identifier { literal: func_name } => {
-                                    // TODO: Use a predefined "eat" function instead to get entry?
-                                    // TODO: This is copy-paste from compile_do. Create function?
-                                    let symbol = self.symbol_table.get_entry(&class_name);
-                                    match symbol {
-                                        Some(entry) => {
-                                            // We are calling a method
-                                            self.vm_writer.write_push(
-                                                kind_to_segment(&entry.kind),
-                                                entry.index,
-                                            );
-                                            let type_ = entry.type_.clone();
-                                            let num_args = 1 + self.compile_expression_list()?;
-                                            self.vm_writer.write_call(
-                                                format!("{}.{}", type_, func_name),
-                                                num_args,
-                                            );
-                                        }
-                                        None => {
-                                            // We are not calling a method
-                                            let num_args = self.compile_expression_list()?;
-                                            self.vm_writer.write_call(
-                                                format!("{}.{}", class_name, func_name),
-                                                num_args,
-                                            );
-                                        }
-                                    }
+                                    self.call_subroutine(&class_name, &func_name)?;
                                 }
                                 _ => {
                                     return Err(format!(
