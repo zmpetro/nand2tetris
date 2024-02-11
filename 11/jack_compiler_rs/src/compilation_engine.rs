@@ -679,6 +679,7 @@ impl CompilationEngine {
             true,
         );
         if res.is_err() {
+            // The let statement is assigning to an array entry.
             self.eat_keyword_or_symbol(
                 vec![Token::Symbol {
                     symbol: Symbol::LBracket,
@@ -686,7 +687,11 @@ impl CompilationEngine {
                 None,
                 true,
             )?;
+
             self.compile_expression()?;
+            self.vm_writer.write_push(segment, index);
+            self.vm_writer.write_arithmetic(MathInstr::Add);
+
             self.eat_keyword_or_symbol(
                 vec![Token::Symbol {
                     symbol: Symbol::RBracket,
@@ -701,10 +706,17 @@ impl CompilationEngine {
                 None,
                 true,
             )?;
-        }
-        self.compile_expression()?;
 
-        self.vm_writer.write_pop(segment, index);
+            self.compile_expression()?;
+            self.vm_writer.write_pop(MemorySegment::Temp, 0);
+            self.vm_writer.write_pop(MemorySegment::Pointer, 1);
+            self.vm_writer.write_push(MemorySegment::Temp, 0);
+            self.vm_writer.write_pop(MemorySegment::That, 0);
+        } else {
+            // The let statement is assigning to an variable.
+            self.compile_expression()?;
+            self.vm_writer.write_pop(segment, index);
+        }
 
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
@@ -1245,7 +1257,9 @@ impl CompilationEngine {
             false,
         );
         if left_bracket.is_ok() {
-            self.eat_variable_use_identifier(Some(&initial_identifier))?;
+            let symbol = self.eat_variable_use_identifier(Some(&initial_identifier))?;
+            let segment = kind_to_segment(&symbol.kind);
+            let index = symbol.index;
             self.eat_keyword_or_symbol(
                 vec![Token::Symbol {
                     symbol: Symbol::LBracket,
@@ -1253,7 +1267,13 @@ impl CompilationEngine {
                 Some(&left_bracket.unwrap()),
                 true,
             )?;
+
             self.compile_expression()?;
+            self.vm_writer.write_push(segment, index);
+            self.vm_writer.write_arithmetic(MathInstr::Add);
+            self.vm_writer.write_pop(MemorySegment::Pointer, 1);
+            self.vm_writer.write_push(MemorySegment::That, 0);
+
             self.eat_keyword_or_symbol(
                 vec![Token::Symbol {
                     symbol: Symbol::RBracket,
