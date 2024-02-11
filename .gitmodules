@@ -1,3 +1,6 @@
 [submodule "08/vm_translator_rs"]
 	path = 08/vm_translator_rs
 	url = https://github.com/zmpetro/vm_translator_rs
+[submodule "11/jack_compiler_rs"]
+	path = 11/jack_compiler_rs
+	url = git@github.com:zmpetro/jack_compiler_rs.git
