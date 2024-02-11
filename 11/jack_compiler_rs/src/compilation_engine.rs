@@ -117,25 +117,6 @@ impl CompilationEngine {
         }
     }
 
-    fn eat_class_or_subroutine_use_identifier(
-        &mut self,
-        predefined_token: Option<&Token>,
-    ) -> Result<Token, String> {
-        let current_token = match predefined_token {
-            Some(token) => token,
-            None => self.tokenizer.current_token.as_ref().unwrap(),
-        }
-        .clone();
-        if let Token::Identifier { .. } = current_token {
-            if predefined_token.is_none() {
-                self.tokenizer.advance();
-            }
-            return Ok(current_token);
-        } else {
-            return Err(format!("Token is not an Identifier: {:?}", current_token));
-        }
-    }
-
     fn eat_variable_definition_identifier(
         &mut self,
         category: Kind,
@@ -184,10 +165,16 @@ impl CompilationEngine {
         }
     }
 
-    fn eat_identifier_without_writing_code(&mut self) -> Result<Token, String> {
-        let current_token = self.tokenizer.current_token.as_ref().unwrap().clone();
+    fn eat_identifier(&mut self, predefined_token: Option<&Token>) -> Result<Token, String> {
+        let current_token = match predefined_token {
+            Some(token) => token,
+            None => self.tokenizer.current_token.as_ref().unwrap(),
+        }
+        .clone();
         if let Token::Identifier { .. } = current_token {
-            self.tokenizer.advance();
+            if predefined_token.is_none() {
+                self.tokenizer.advance();
+            }
             return Ok(current_token);
         } else {
             return Err(format!("Token is not an Identifier: {:?}", current_token));
@@ -207,7 +194,7 @@ impl CompilationEngine {
             }],
             None,
         )?;
-        let class_name = self.eat_identifier_without_writing_code()?;
+        let class_name = self.eat_identifier(None)?;
         if let Token::Identifier { literal } = class_name {
             self.class_name = literal;
         }
@@ -245,7 +232,7 @@ impl CompilationEngine {
         );
         if res.is_err() {
             // Couldn't eat int, char, or boolean. Attempt to eat className
-            res = self.eat_class_or_subroutine_use_identifier(None);
+            res = self.eat_identifier(None);
             if res.is_err() {
                 return Err(format!(
                     "current_token: {:?}  expected_token: type",
@@ -338,7 +325,7 @@ impl CompilationEngine {
                 true
             }
         };
-        let subroutine_name = self.eat_identifier_without_writing_code()?;
+        let subroutine_name = self.eat_identifier(None)?;
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::LParen,
@@ -753,7 +740,7 @@ impl CompilationEngine {
             }],
             None,
         )?;
-        let initial_identifier = self.eat_identifier_without_writing_code()?;
+        let initial_identifier = self.eat_identifier(None)?;
         let left_paren = self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::LParen,
@@ -762,7 +749,7 @@ impl CompilationEngine {
         );
         match left_paren {
             Ok(token) => {
-                self.eat_class_or_subroutine_use_identifier(Some(&initial_identifier))?;
+                self.eat_identifier(Some(&initial_identifier))?;
                 self.eat_keyword_or_symbol(
                     vec![Token::Symbol {
                         symbol: Symbol::LParen,
@@ -789,14 +776,14 @@ impl CompilationEngine {
                 }
             }
             Err(_) => {
-                self.eat_class_or_subroutine_use_identifier(Some(&initial_identifier))?;
+                self.eat_identifier(Some(&initial_identifier))?;
                 self.eat_keyword_or_symbol(
                     vec![Token::Symbol {
                         symbol: Symbol::Period,
                     }],
                     None,
                 )?;
-                let second_identifier = self.eat_class_or_subroutine_use_identifier(None)?;
+                let second_identifier = self.eat_identifier(None)?;
                 self.eat_keyword_or_symbol(
                     vec![Token::Symbol {
                         symbol: Symbol::LParen,
@@ -1048,7 +1035,7 @@ impl CompilationEngine {
 
         // Once all the previous options have been exhausted, the next token
         // must be an identifier.
-        let initial_identifier = self.eat_identifier_without_writing_code()?;
+        let initial_identifier = self.eat_identifier(None)?;
 
         // The identifier can be a variable, array entry, or subroutine call
         // based on the next token.
@@ -1102,7 +1089,7 @@ impl CompilationEngine {
                 // Term is a subroutine call
                 Token::Symbol { ref symbol } => match symbol {
                     Symbol::LParen => {
-                        self.eat_class_or_subroutine_use_identifier(Some(&initial_identifier))?;
+                        self.eat_identifier(Some(&initial_identifier))?;
                         self.eat_keyword_or_symbol(
                             vec![Token::Symbol {
                                 symbol: Symbol::LParen,
@@ -1131,15 +1118,14 @@ impl CompilationEngine {
                         return Ok(());
                     }
                     Symbol::Period => {
-                        self.eat_class_or_subroutine_use_identifier(Some(&initial_identifier))?;
+                        self.eat_identifier(Some(&initial_identifier))?;
                         self.eat_keyword_or_symbol(
                             vec![Token::Symbol {
                                 symbol: Symbol::Period,
                             }],
                             Some(&token),
                         )?;
-                        let second_identifier =
-                            self.eat_class_or_subroutine_use_identifier(None)?;
+                        let second_identifier = self.eat_identifier(None)?;
                         self.eat_keyword_or_symbol(
                             vec![Token::Symbol {
                                 symbol: Symbol::LParen,
