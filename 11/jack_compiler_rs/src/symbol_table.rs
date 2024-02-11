@@ -8,17 +8,6 @@ pub enum Kind {
     Var,
 }
 
-impl Kind {
-    pub fn to_string(&self) -> String {
-        match self {
-            Kind::Static => String::from("static"),
-            Kind::Field => String::from("field"),
-            Kind::Arg => String::from("arg"),
-            Kind::Var => String::from("var"),
-        }
-    }
-}
-
 #[derive(Debug)]
 pub struct Entry {
     pub type_: String,

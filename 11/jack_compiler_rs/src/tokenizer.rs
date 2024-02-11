@@ -74,32 +74,6 @@ pub enum Symbol {
     Tilde,
 }
 
-impl Symbol {
-    fn to_string(&self) -> &str {
-        match *self {
-            Symbol::LCurly => "{",
-            Symbol::RCurly => "}",
-            Symbol::LParen => "(",
-            Symbol::RParen => ")",
-            Symbol::LBracket => "[",
-            Symbol::RBracket => "]",
-            Symbol::Period => ".",
-            Symbol::Comma => ",",
-            Symbol::Semicolon => ";",
-            Symbol::Plus => "+",
-            Symbol::Minus => "-",
-            Symbol::Asterisk => "*",
-            Symbol::Slash => "/",
-            Symbol::Ampersand => "&amp;",
-            Symbol::Pipe => "|",
-            Symbol::LessThan => "&lt;",
-            Symbol::GreaterThan => "&gt;",
-            Symbol::Equals => "=",
-            Symbol::Tilde => "~",
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
     Keyword { keyword: Keyword },
@@ -107,48 +81,6 @@ pub enum Token {
     IntegerConstant { value: usize },
     StringConstant { literal: String },
     Identifier { literal: String },
-}
-
-impl Token {
-    pub fn to_xml_events(&self) -> Vec<String> {
-        match self {
-            Token::Keyword { keyword } => {
-                vec![
-                    String::from("+keyword"),
-                    format!(" {} ", keyword.to_string().to_owned()),
-                    String::from("-keyword"),
-                ]
-            }
-            Token::Symbol { symbol } => {
-                vec![
-                    String::from("+symbol"),
-                    format!(" {} ", symbol.to_string().to_owned()),
-                    String::from("-symbol"),
-                ]
-            }
-            Token::IntegerConstant { value } => {
-                vec![
-                    String::from("+integerConstant"),
-                    format!(" {} ", value.to_string()),
-                    String::from("-integerConstant"),
-                ]
-            }
-            Token::StringConstant { literal } => {
-                vec![
-                    String::from("+stringConstant"),
-                    format!(" {} ", literal.to_owned()),
-                    String::from("-stringConstant"),
-                ]
-            }
-            Token::Identifier { literal } => {
-                vec![
-                    String::from("+identifier"),
-                    format!(" {} ", literal.to_owned()),
-                    String::from("-identifier"),
-                ]
-            }
-        }
-    }
 }
 
 // Used to return a Keyword or Identifier from a function

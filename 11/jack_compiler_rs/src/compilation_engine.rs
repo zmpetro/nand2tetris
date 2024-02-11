@@ -8,20 +8,6 @@ const DIVIDE_FN: &str = "Math.divide";
 const STRING_NEW_FN: &str = "String.new";
 const STRING_APPEND_FN: &str = "String.appendChar";
 
-enum IdentifierCategory {
-    Class,
-    Subroutine,
-}
-
-impl IdentifierCategory {
-    fn to_string(&self) -> String {
-        match self {
-            IdentifierCategory::Class => String::from("class"),
-            IdentifierCategory::Subroutine => String::from("subroutine"),
-        }
-    }
-}
-
 fn keyword_to_kind(token: &Token) -> Result<Kind, String> {
     // Utility function to convert a Token Keyword of type Static, Field, or
     // Var to its respective Kind
@@ -82,30 +68,6 @@ impl CompilationEngine {
         }
     }
 
-    fn eat_keyword_or_symbol(
-        &mut self,
-        expected_tokens: Vec<Token>,
-        predefined_token: Option<&Token>,
-        write_code: bool,
-    ) -> Result<Token, String> {
-        let current_token = match predefined_token {
-            Some(token) => token,
-            None => self.tokenizer.current_token.as_ref().unwrap(),
-        }
-        .clone();
-        if expected_tokens.contains(&current_token) {
-            if predefined_token.is_none() {
-                self.tokenizer.advance();
-            }
-            return Ok(current_token);
-        } else {
-            return Err(format!(
-                "current_token: {:?}  expected_token: {:?}",
-                current_token, expected_tokens
-            ));
-        }
-    }
-
     fn eat_integer(&mut self) -> Result<Token, String> {
         let current_token = self.tokenizer.current_token.as_ref().unwrap().clone();
         if let Token::IntegerConstant { .. } = current_token {
@@ -132,9 +94,9 @@ impl CompilationEngine {
         }
     }
 
-    fn eat_class_or_subroutine_use_identifier(
+    fn eat_keyword_or_symbol(
         &mut self,
-        category: IdentifierCategory,
+        expected_tokens: Vec<Token>,
         predefined_token: Option<&Token>,
     ) -> Result<Token, String> {
         let current_token = match predefined_token {
@@ -142,7 +104,29 @@ impl CompilationEngine {
             None => self.tokenizer.current_token.as_ref().unwrap(),
         }
         .clone();
-        if let Token::Identifier { ref literal } = current_token {
+        if expected_tokens.contains(&current_token) {
+            if predefined_token.is_none() {
+                self.tokenizer.advance();
+            }
+            return Ok(current_token);
+        } else {
+            return Err(format!(
+                "current_token: {:?}  expected_token: {:?}",
+                current_token, expected_tokens
+            ));
+        }
+    }
+
+    fn eat_class_or_subroutine_use_identifier(
+        &mut self,
+        predefined_token: Option<&Token>,
+    ) -> Result<Token, String> {
+        let current_token = match predefined_token {
+            Some(token) => token,
+            None => self.tokenizer.current_token.as_ref().unwrap(),
+        }
+        .clone();
+        if let Token::Identifier { .. } = current_token {
             if predefined_token.is_none() {
                 self.tokenizer.advance();
             }
@@ -222,7 +206,6 @@ impl CompilationEngine {
                 keyword: Keyword::Class,
             }],
             None,
-            true,
         )?;
         let class_name = self.eat_identifier_without_writing_code()?;
         if let Token::Identifier { literal } = class_name {
@@ -233,7 +216,6 @@ impl CompilationEngine {
                 symbol: Symbol::LCurly,
             }],
             None,
-            true,
         )?;
         self.compile_all_class_var_dec()?;
         self.compile_all_subroutine_dec()?;
@@ -242,7 +224,6 @@ impl CompilationEngine {
                 symbol: Symbol::RCurly,
             }],
             None,
-            true,
         )?;
         Ok(())
     }
@@ -261,11 +242,10 @@ impl CompilationEngine {
                 },
             ],
             None,
-            true,
         );
         if res.is_err() {
             // Couldn't eat int, char, or boolean. Attempt to eat className
-            res = self.eat_class_or_subroutine_use_identifier(IdentifierCategory::Class, None);
+            res = self.eat_class_or_subroutine_use_identifier(None);
             if res.is_err() {
                 return Err(format!(
                     "current_token: {:?}  expected_token: type",
@@ -288,7 +268,6 @@ impl CompilationEngine {
                 },
             ],
             None,
-            true,
         )?;
         let kind = keyword_to_kind(&static_or_field)?;
         let type_ = self.eat_type()?;
@@ -299,7 +278,6 @@ impl CompilationEngine {
                 symbol: Symbol::Comma,
             }],
             None,
-            true,
         ) {
             self.eat_variable_definition_identifier(kind.clone(), type_.clone())?;
         }
@@ -308,7 +286,6 @@ impl CompilationEngine {
                 symbol: Symbol::Semicolon,
             }],
             None,
-            true,
         )?;
         Ok(())
     }
@@ -348,7 +325,6 @@ impl CompilationEngine {
                 },
             ],
             None,
-            true,
         )?;
         let void_function = match self.eat_type() {
             Ok(_) => false,
@@ -358,7 +334,6 @@ impl CompilationEngine {
                         keyword: Keyword::Void,
                     }],
                     None,
-                    true,
                 )?;
                 true
             }
@@ -369,7 +344,6 @@ impl CompilationEngine {
                 symbol: Symbol::LParen,
             }],
             None,
-            true,
         )?;
         let is_method = match subroutine_type {
             Token::Keyword { ref keyword } => match keyword {
@@ -389,7 +363,6 @@ impl CompilationEngine {
                 symbol: Symbol::RParen,
             }],
             None,
-            true,
         )?;
         self.compile_subroutine_body(subroutine_type, subroutine_name, void_function)?;
         Ok(())
@@ -430,7 +403,6 @@ impl CompilationEngine {
                     symbol: Symbol::Comma,
                 }],
                 None,
-                true,
             ) {
                 let type_ = self.eat_type()?;
                 let type_ = type_to_string(&type_)?;
@@ -452,7 +424,6 @@ impl CompilationEngine {
                 symbol: Symbol::LCurly,
             }],
             None,
-            true,
         )?;
 
         self.compile_all_var_dec()?;
@@ -492,7 +463,6 @@ impl CompilationEngine {
                 symbol: Symbol::RCurly,
             }],
             None,
-            true,
         )?;
         Ok(())
     }
@@ -504,7 +474,6 @@ impl CompilationEngine {
                 keyword: Keyword::Var,
             }],
             None,
-            true,
         )?;
         let type_ = self.eat_type()?;
         let type_ = type_to_string(&type_)?;
@@ -514,7 +483,6 @@ impl CompilationEngine {
                 symbol: Symbol::Comma,
             }],
             None,
-            true,
         ) {
             self.eat_variable_definition_identifier(Kind::Var, type_.clone())?;
         }
@@ -523,7 +491,6 @@ impl CompilationEngine {
                 symbol: Symbol::Semicolon,
             }],
             None,
-            true,
         )?;
         Ok(())
     }
@@ -571,7 +538,6 @@ impl CompilationEngine {
                 keyword: Keyword::Let,
             }],
             None,
-            true,
         )?;
         let symbol = self.eat_variable_use_identifier(None)?;
         let segment = kind_to_segment(&symbol.kind);
@@ -581,7 +547,6 @@ impl CompilationEngine {
                 symbol: Symbol::Equals,
             }],
             None,
-            true,
         );
         if res.is_err() {
             // The let statement is assigning to an array entry.
@@ -590,7 +555,6 @@ impl CompilationEngine {
                     symbol: Symbol::LBracket,
                 }],
                 None,
-                true,
             )?;
 
             self.compile_expression()?;
@@ -602,14 +566,12 @@ impl CompilationEngine {
                     symbol: Symbol::RBracket,
                 }],
                 None,
-                true,
             )?;
             self.eat_keyword_or_symbol(
                 vec![Token::Symbol {
                     symbol: Symbol::Equals,
                 }],
                 None,
-                true,
             )?;
 
             self.compile_expression()?;
@@ -628,7 +590,6 @@ impl CompilationEngine {
                 symbol: Symbol::Semicolon,
             }],
             None,
-            true,
         )?;
         Ok(())
     }
@@ -645,14 +606,12 @@ impl CompilationEngine {
                 keyword: Keyword::If,
             }],
             None,
-            true,
         )?;
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::LParen,
             }],
             None,
-            true,
         )?;
 
         self.compile_expression()?;
@@ -665,14 +624,12 @@ impl CompilationEngine {
                 symbol: Symbol::RParen,
             }],
             None,
-            true,
         )?;
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::LCurly,
             }],
             None,
-            true,
         )?;
 
         self.compile_statements(ctor_or_method, void_function)?;
@@ -682,14 +639,12 @@ impl CompilationEngine {
                 symbol: Symbol::RCurly,
             }],
             None,
-            true,
         )?;
         let res = self.eat_keyword_or_symbol(
             vec![Token::Keyword {
                 keyword: Keyword::Else,
             }],
             None,
-            true,
         );
         if res.is_ok() {
             // Entering else statement
@@ -698,7 +653,6 @@ impl CompilationEngine {
                     symbol: Symbol::LCurly,
                 }],
                 None,
-                true,
             )?;
 
             self.vm_writer.write_goto(label_if_end.clone());
@@ -711,7 +665,6 @@ impl CompilationEngine {
                     symbol: Symbol::RCurly,
                 }],
                 None,
-                true,
             )?;
         } else {
             // No else statement exists
@@ -731,14 +684,12 @@ impl CompilationEngine {
                 keyword: Keyword::While,
             }],
             None,
-            true,
         )?;
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::LParen,
             }],
             None,
-            true,
         )?;
 
         self.vm_writer.write_label(label_expr.clone());
@@ -751,14 +702,12 @@ impl CompilationEngine {
                 symbol: Symbol::RParen,
             }],
             None,
-            true,
         )?;
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::LCurly,
             }],
             None,
-            true,
         )?;
 
         self.compile_statements(ctor_or_method, void_function)?;
@@ -770,7 +719,6 @@ impl CompilationEngine {
                 symbol: Symbol::RCurly,
             }],
             None,
-            true,
         )?;
         Ok(())
     }
@@ -804,7 +752,6 @@ impl CompilationEngine {
                 keyword: Keyword::Do,
             }],
             None,
-            true,
         )?;
         let initial_identifier = self.eat_identifier_without_writing_code()?;
         let left_paren = self.eat_keyword_or_symbol(
@@ -812,20 +759,15 @@ impl CompilationEngine {
                 symbol: Symbol::LParen,
             }],
             None,
-            false,
         );
         match left_paren {
             Ok(token) => {
-                self.eat_class_or_subroutine_use_identifier(
-                    IdentifierCategory::Subroutine,
-                    Some(&initial_identifier),
-                )?;
+                self.eat_class_or_subroutine_use_identifier(Some(&initial_identifier))?;
                 self.eat_keyword_or_symbol(
                     vec![Token::Symbol {
                         symbol: Symbol::LParen,
                     }],
                     Some(&token),
-                    true,
                 )?;
                 match initial_identifier {
                     Token::Identifier { literal } => {
@@ -847,25 +789,19 @@ impl CompilationEngine {
                 }
             }
             Err(_) => {
-                self.eat_class_or_subroutine_use_identifier(
-                    IdentifierCategory::Class,
-                    Some(&initial_identifier),
-                )?;
+                self.eat_class_or_subroutine_use_identifier(Some(&initial_identifier))?;
                 self.eat_keyword_or_symbol(
                     vec![Token::Symbol {
                         symbol: Symbol::Period,
                     }],
                     None,
-                    true,
                 )?;
-                let second_identifier = self
-                    .eat_class_or_subroutine_use_identifier(IdentifierCategory::Subroutine, None)?;
+                let second_identifier = self.eat_class_or_subroutine_use_identifier(None)?;
                 self.eat_keyword_or_symbol(
                     vec![Token::Symbol {
                         symbol: Symbol::LParen,
                     }],
                     None,
-                    true,
                 )?;
                 match initial_identifier {
                     Token::Identifier {
@@ -900,14 +836,12 @@ impl CompilationEngine {
                 symbol: Symbol::RParen,
             }],
             None,
-            true,
         )?;
         self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::Semicolon,
             }],
             None,
-            true,
         )?;
         Ok(())
     }
@@ -919,14 +853,12 @@ impl CompilationEngine {
                 keyword: Keyword::Return,
             }],
             None,
-            true,
         )?;
         let res = self.eat_keyword_or_symbol(
             vec![Token::Symbol {
                 symbol: Symbol::Semicolon,
             }],
             None,
-            true,
         );
         if res.is_err() {
             self.compile_expression()?;
@@ -935,7 +867,6 @@ impl CompilationEngine {
                     symbol: Symbol::Semicolon,
                 }],
                 None,
-                true,
             )?;
         }
 
@@ -983,7 +914,6 @@ impl CompilationEngine {
                 },
             ],
             None,
-            true,
         ) {
             self.compile_term()?;
             match op {
@@ -1030,7 +960,6 @@ impl CompilationEngine {
                 },
             ],
             None,
-            true,
         );
         if res.is_ok() {
             self.compile_term()?;
@@ -1051,7 +980,6 @@ impl CompilationEngine {
                 symbol: Symbol::LParen,
             }],
             None,
-            true,
         );
         if res.is_ok() {
             self.compile_expression()?;
@@ -1060,7 +988,6 @@ impl CompilationEngine {
                     symbol: Symbol::RParen,
                 }],
                 None,
-                true,
             )?;
             return Ok(());
         }
@@ -1101,7 +1028,6 @@ impl CompilationEngine {
                 },
             ],
             None,
-            true,
         );
         if res.is_ok() {
             match res {
@@ -1132,7 +1058,6 @@ impl CompilationEngine {
                 symbol: Symbol::LBracket,
             }],
             None,
-            false,
         );
         if left_bracket.is_ok() {
             let symbol = self.eat_variable_use_identifier(Some(&initial_identifier))?;
@@ -1143,7 +1068,6 @@ impl CompilationEngine {
                     symbol: Symbol::LBracket,
                 }],
                 Some(&left_bracket.unwrap()),
-                true,
             )?;
 
             self.compile_expression()?;
@@ -1157,7 +1081,6 @@ impl CompilationEngine {
                     symbol: Symbol::RBracket,
                 }],
                 None,
-                true,
             )?;
             return Ok(());
         }
@@ -1173,23 +1096,18 @@ impl CompilationEngine {
                 },
             ],
             None,
-            false,
         );
         match next_token {
             Ok(token) => match token {
                 // Term is a subroutine call
                 Token::Symbol { ref symbol } => match symbol {
                     Symbol::LParen => {
-                        self.eat_class_or_subroutine_use_identifier(
-                            IdentifierCategory::Subroutine,
-                            Some(&initial_identifier),
-                        )?;
+                        self.eat_class_or_subroutine_use_identifier(Some(&initial_identifier))?;
                         self.eat_keyword_or_symbol(
                             vec![Token::Symbol {
                                 symbol: Symbol::LParen,
                             }],
                             Some(&token),
-                            true,
                         )?;
 
                         let num_args = self.compile_expression_list()?;
@@ -1209,32 +1127,24 @@ impl CompilationEngine {
                                 symbol: Symbol::RParen,
                             }],
                             None,
-                            true,
                         )?;
                         return Ok(());
                     }
                     Symbol::Period => {
-                        self.eat_class_or_subroutine_use_identifier(
-                            IdentifierCategory::Class,
-                            Some(&initial_identifier),
-                        )?;
+                        self.eat_class_or_subroutine_use_identifier(Some(&initial_identifier))?;
                         self.eat_keyword_or_symbol(
                             vec![Token::Symbol {
                                 symbol: Symbol::Period,
                             }],
                             Some(&token),
-                            true,
                         )?;
-                        let second_identifier = self.eat_class_or_subroutine_use_identifier(
-                            IdentifierCategory::Subroutine,
-                            None,
-                        )?;
+                        let second_identifier =
+                            self.eat_class_or_subroutine_use_identifier(None)?;
                         self.eat_keyword_or_symbol(
                             vec![Token::Symbol {
                                 symbol: Symbol::LParen,
                             }],
                             None,
-                            true,
                         )?;
 
                         match initial_identifier {
@@ -1264,7 +1174,6 @@ impl CompilationEngine {
                                 symbol: Symbol::RParen,
                             }],
                             None,
-                            true,
                         )?;
                         return Ok(());
                     }
@@ -1326,7 +1235,6 @@ impl CompilationEngine {
                     symbol: Symbol::Comma,
                 }],
                 None,
-                true,
             ) {
                 self.compile_expression()?;
                 num_expressions += 1;
