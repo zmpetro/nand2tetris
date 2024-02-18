@@ -9,26 +9,79 @@
  * consists of 32,768 words, each holding a 16-bit binary number.
  */ 
 class Memory {
+    static Array ram;
 
     /** Initializes the class. */
     function void init() {
+        let ram = 0;
+        let ram[2048] = 0;
+        let ram[2049] = 14335;
+        return;
     }
 
     /** Returns the RAM value at the given address. */
     function int peek(int address) {
+        return ram[address];
     }
 
     /** Sets the RAM value at the given address to the given value. */
     function void poke(int address, int value) {
+        let ram[address] = value;
+        return;
     }
 
     /** Finds an available RAM block of the given size and returns
      *  a reference to its base address. */
     function int alloc(int size) {
+        var int free_list;
+        var int base_addr;
+        var int cur_size;
+        var int needed_size;
+        var int new_size;
+        var int next_block;
+        let free_list = 2048;
+        let needed_size = size + 2;
+
+        let base_addr = 0;
+        while (base_addr = 0) {
+            let cur_size = ram[free_list + 1];
+            if ((cur_size > needed_size) | (cur_size = needed_size)) {
+                // We found an available block
+                let new_size = cur_size - needed_size;
+                let ram[free_list + 1] = new_size;
+                let base_addr = free_list + new_size + 4;
+                let ram[base_addr - 1] = size;
+                let ram[base_addr - 2] = 0;
+            } else {
+                let next_block = ram[free_list];
+                if (next_block = 0) {
+                    // We made it to the end of the free list without finding
+                    // an available block
+                    do Sys.error(1);
+                } else {
+                    let free_list = next_block;
+                }
+            }
+        }
+
+        return base_addr;
     }
 
     /** De-allocates the given object (cast as an array) by making
      *  it available for future allocations. */
     function void deAlloc(Array o) {
+        var int free_list;
+        var int next_block;
+        let free_list = 2048;
+
+        let next_block = ram[free_list];
+        while (~(next_block = 0)) {
+            let free_list = next_block;
+            let next_block = ram[free_list];
+        }
+
+        // free_list points to the last element in the free list
+        let ram[free_list] = o - 2;
+        return;
     }    
 }
