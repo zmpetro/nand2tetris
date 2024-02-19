@@ -11,10 +11,15 @@ class Math {
 
     /** Initializes the library. */
     function void init() {
+        return;
     }
 
     /** Returns the absolute value of x. */
     function int abs(int x) {
+        if (x < 0) {
+            return -x;
+        }
+        return x;
     }
 
     /** Returns the product of x and y. 
@@ -23,6 +28,24 @@ class Math {
      *  the Jack expressions x*y and multiply(x,y) return the same value.
      */
     function int multiply(int x, int y) {
+        var int sum;
+        var int shifted_x;
+        var int i;
+        var int mask;
+        let sum = 0;
+        let shifted_x = x;
+        let mask = 1;
+        let i = 0;
+        while (i < 16) {
+            // check if i'th bit of y is 1
+            if ((y & mask) = mask) {
+                let sum = sum + shifted_x;
+            }
+            let shifted_x = shifted_x + shifted_x;
+            let mask = mask + mask;
+            let i = i + 1;
+        }
+        return sum;
     }
 
     /** Returns the integer part of x/y.
@@ -31,17 +54,71 @@ class Math {
      *  the Jack expressions x/y and divide(x,y) return the same value.
      */
     function int divide(int x, int y) {
+        var boolean result_is_negative;
+        var int result;
+        if (((x > 0) & (y > 0)) | ((x < 0) & (y < 0))) {
+            let result_is_negative = false;
+        } else {
+            let result_is_negative = true;
+        }
+        let x = Math.abs(x);
+        let y = Math.abs(y);
+        let result = Math.divide_abs(x, y);
+        if (result_is_negative) {
+            let result = -result;
+        }
+        return result;
+    }
+
+    function int divide_abs(int x, int y) {
+        // Helper function for divide
+        var int q;
+        if ((y > x) | (y < 0)) {
+            return 0;
+        }
+        let q = Math.divide_abs(x, y + y);
+        if ((x - ((q + q) * y)) < y) {
+            return q + q;
+        }
+        return q + q + 1;
     }
 
     /** Returns the integer part of the square root of x. */
     function int sqrt(int x) {
+        var int left;
+        var int right;
+        var int mid;
+        var int result;
+        if ((x = 0) | (x = 1)) {
+            return x;
+        }
+        let left = 1;
+        let right = Math.min(x, 181);
+        while (left < (right + 1)) {
+            let mid = (left + right) / 2;
+            if ((mid * mid) > x) {
+                let right = mid - 1;
+            } else {
+                let left = mid + 1;
+                let result = mid;
+            }
+        }
+        return result;
     }
 
     /** Returns the greater number. */
     function int max(int a, int b) {
+        if (a > b) {
+            return a;
+        }
+        return b;
     }
 
     /** Returns the smaller number. */
     function int min(int a, int b) {
+        if (a < b) {
+            return a;
+        }
+        return b;
     }
 }
