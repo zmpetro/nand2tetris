@@ -31,7 +31,7 @@ class Sys {
         var int i;
         while (duration > 0) {
             let i = 0;
-            while (i < 200) {
+            while (i < 100) {
                 let i = i + 1;
             }
             let duration = duration - 1;
